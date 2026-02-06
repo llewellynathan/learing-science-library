@@ -1,0 +1,70 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import SharedReport from '../../components/react/SharedReport';
+import { supabase } from '../../lib/supabase';
+
+export const prerender = false;
+
+const { id } = Astro.params;
+
+// Fetch report from Supabase
+let report = null;
+let error = null;
+
+if (supabase && id) {
+  const { data, error: fetchError } = await supabase
+    .from('audit_reports')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (fetchError || !data) {
+    error = 'Report not found';
+  } else {
+    report = {
+      id: data.id,
+      createdAt: data.created_at,
+      overallScore: data.overall_score,
+      ratings: data.ratings,
+      sectionResults: data.section_results,
+      keyTakeaways: data.key_takeaways,
+    };
+  }
+} else if (!supabase) {
+  error = 'Database not configured';
+}
+
+const allPrinciples = await getCollection('principles');
+
+const essentialPrinciples = allPrinciples
+  .filter((p) => p.data.essential)
+  .sort((a, b) => a.data.title.localeCompare(b.data.title));
+
+const principlesData = essentialPrinciples.map((p) => ({
+  id: p.id,
+  title: p.data.title,
+  category: p.data.category,
+  summary: p.data.summary,
+}));
+---
+
+<BaseLayout title={report ? `Audit Report - ${report.overallScore.toFixed(1)}/5.0` : 'Report Not Found'}>
+  <div class="mb-8">
+    <h1 class="text-3xl font-bold text-slate-900 mb-2">Learning Science Audit Report</h1>
+    <p class="text-slate-600">
+      {report ? 'Shared audit results for a learning experience.' : 'This report could not be found.'}
+    </p>
+  </div>
+
+  {error ? (
+    <div class="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+      <p class="text-red-700 mb-4">{error}</p>
+      <a href="/audit" class="text-slate-700 hover:text-slate-900 font-medium">
+        Create a new audit &rarr;
+      </a>
+    </div>
+  ) : report ? (
+    <SharedReport client:load principles={principlesData} report={report} />
+  ) : null}
+</BaseLayout>
