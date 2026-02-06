@@ -1,10 +1,9 @@
 ---
 interface Props {
   categories: string[];
-  activeCategory?: string;
 }
 
-const { categories, activeCategory } = Astro.props;
+const { categories } = Astro.props;
 
 const categoryColors: Record<string, string> = {
   'Memory & Retention': 'bg-purple-100 text-purple-800 hover:bg-purple-200',
@@ -16,27 +15,21 @@ const categoryColors: Record<string, string> = {
 };
 ---
 
-<div class="flex flex-wrap gap-2 mb-8">
-  <a
-    href="/"
-    class={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-      !activeCategory
-        ? 'bg-slate-900 text-white'
-        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-    }`}
+<div class="flex flex-wrap gap-2 mb-8" id="category-filter">
+  <button
+    type="button"
+    data-category=""
+    class="category-btn px-3 py-1.5 rounded-full text-sm font-medium transition-colors bg-slate-900 text-white"
   >
     All
-  </a>
+  </button>
   {categories.map((category) => (
-    <a
-      href={`/?category=${encodeURIComponent(category)}`}
-      class={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-        activeCategory === category
-          ? 'ring-2 ring-slate-900 ring-offset-2'
-          : ''
-      } ${categoryColors[category]}`}
+    <button
+      type="button"
+      data-category={category}
+      class={`category-btn px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${categoryColors[category]}`}
     >
       {category}
-    </a>
+    </button>
   ))}
 </div>
