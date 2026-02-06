@@ -34,18 +34,26 @@ export default function FollowUpQuestions({
     }))
   );
 
-  const currentPrinciple = lowScoringPrinciples[currentIndex];
-  const currentAnswer = answers[currentIndex];
-  const questionData = followUpQuestions[currentPrinciple.id];
-  const isLast = currentIndex === lowScoringPrinciples.length - 1;
+  // Safety check: ensure currentIndex is within bounds
+  const totalQuestions = lowScoringPrinciples.length;
+  const safeIndex = Math.min(Math.max(0, currentIndex), totalQuestions - 1, answers.length - 1);
+  const currentPrinciple = lowScoringPrinciples[safeIndex];
+  const currentAnswer = answers[safeIndex];
+  const questionData = currentPrinciple ? followUpQuestions[currentPrinciple.id] : null;
+  const isLast = safeIndex === totalQuestions - 1;
+
+  // Early return if no valid data
+  if (!currentPrinciple || !currentAnswer || totalQuestions === 0) {
+    return null;
+  }
 
   const updateAnswer = useCallback(
     (update: Partial<FollowUpAnswer>) => {
       setAnswers((prev) =>
-        prev.map((a, i) => (i === currentIndex ? { ...a, ...update } : a))
+        prev.map((a, i) => (i === safeIndex ? { ...a, ...update } : a))
       );
     },
-    [currentIndex]
+    [safeIndex]
   );
 
   const toggleOption = useCallback(
@@ -108,12 +116,12 @@ export default function FollowUpQuestions({
             <div
               className="bg-slate-600 h-2 rounded-full transition-all duration-300"
               style={{
-                width: `${((currentIndex + 1) / lowScoringPrinciples.length) * 100}%`,
+                width: `${((safeIndex + 1) / totalQuestions) * 100}%`,
               }}
             />
           </div>
           <span className="text-sm text-slate-500">
-            {currentIndex + 1} of {lowScoringPrinciples.length}
+            {safeIndex + 1} of {totalQuestions}
           </span>
         </div>
       </div>
@@ -187,9 +195,9 @@ export default function FollowUpQuestions({
       <div className="flex items-center justify-between">
         <button
           onClick={handlePrevious}
-          disabled={currentIndex === 0}
+          disabled={safeIndex === 0}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            currentIndex === 0
+            safeIndex === 0
               ? 'text-slate-300 cursor-not-allowed'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
           }`}

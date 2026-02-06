@@ -98,6 +98,7 @@ export default function AuditTool({ principles }: AuditToolProps) {
   const [resultsTab, setResultsTab] = useState<'overall' | string>('overall');
   const [isSharing, setIsSharing] = useState(false);
   const [sharedUrl, setSharedUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   // Follow-up questions state
   const [showFollowUp, setShowFollowUp] = useState(false);
@@ -190,6 +191,70 @@ export default function AuditTool({ principles }: AuditToolProps) {
 
     return { average, gaps, strengths, totalRated: rated.length };
   }, [ratings, principles, combinedAiScores]);
+
+  // Section-specific results for tab view
+  const sectionResults_forTab = useMemo(() => {
+    if (resultsTab === 'overall' || sectionResults.length === 0) return null;
+
+    const selectedSection = sectionResults.find((sr) => sr.sectionId === resultsTab);
+    if (!selectedSection) return null;
+
+    const sectionScores = Object.entries(selectedSection.scores)
+      .filter(([, score]) => score && !score.notApplicable && score.score > 0);
+
+    if (sectionScores.length === 0) return null;
+
+    const scores = sectionScores.map(([, s]) => s.score);
+    const average = scores.reduce((a, b) => a + b, 0) / scores.length;
+
+    const gaps = sectionScores
+      .filter(([, s]) => s.score <= 3)
+      .map(([id, s]) => {
+        const principle = principles.find((p) => p.id === id)!;
+        return {
+          id,
+          title: principle.title,
+          category: principle.category,
+          score: s.score,
+          reasoning: s.reasoning,
+          recommendation: auditData[id]?.recommendation || '',
+        };
+      })
+      .sort((a, b) => a.score - b.score);
+
+    const strengths = sectionScores
+      .filter(([, s]) => s.score >= 4)
+      .map(([id, s]) => {
+        const principle = principles.find((p) => p.id === id)!;
+        return {
+          id,
+          title: principle.title,
+          category: principle.category,
+          score: s.score,
+          reasoning: s.reasoning,
+        };
+      })
+      .sort((a, b) => b.score - a.score);
+
+    const notApplicable = Object.entries(selectedSection.scores)
+      .filter(([, score]) => score?.notApplicable)
+      .map(([id]) => {
+        const principle = principles.find((p) => p.id === id)!;
+        return { id, title: principle.title };
+      });
+
+    return {
+      sectionName: selectedSection.sectionName,
+      average,
+      gaps,
+      strengths,
+      notApplicable,
+      totalRated: sectionScores.length,
+    };
+  }, [resultsTab, sectionResults, principles]);
+
+  // Active results based on tab
+  const activeResults = resultsTab === 'overall' ? results : sectionResults_forTab;
 
   // Generate key takeaways from results
   const keyTakeaways = useMemo(() => {
@@ -393,7 +458,7 @@ export default function AuditTool({ principles }: AuditToolProps) {
     setShowFollowUp(false);
   }, []);
 
-  const copyResults = () => {
+  const copyResults = async () => {
     if (!results) return;
 
     const lines = [
@@ -439,7 +504,9 @@ export default function AuditTool({ principles }: AuditToolProps) {
       });
     }
 
-    navigator.clipboard.writeText(lines.join('\n'));
+    await navigator.clipboard.writeText(lines.join('\n'));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const shareLegacyUrl = () => {
@@ -539,43 +606,9 @@ export default function AuditTool({ principles }: AuditToolProps) {
               Upload up to 5 screenshots for each section.
             </p>
 
-            {/* Add Section */}
-            <div className="flex gap-2 mb-4">
-              <input
-                type="text"
-                value={newSectionName}
-                onChange={(e) => setNewSectionName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addSection(newSectionName)}
-                placeholder="Section name..."
-                className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
-                disabled={isAnalyzing}
-              />
-              <button
-                onClick={() => addSection(newSectionName)}
-                disabled={!newSectionName.trim() || isAnalyzing}
-                className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed"
-              >
-                Add Section
-              </button>
-            </div>
-
-            {/* Presets */}
-            <div className="flex flex-wrap gap-2 mb-6">
-              {SECTION_PRESETS.filter((p) => !sections.some((s) => s.name === p)).map((preset) => (
-                <button
-                  key={preset}
-                  onClick={() => addSection(preset)}
-                  disabled={isAnalyzing}
-                  className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-full text-xs hover:bg-slate-200 disabled:opacity-50"
-                >
-                  + {preset}
-                </button>
-              ))}
-            </div>
-
             {/* Section Cards */}
             {sections.length > 0 && (
-              <div className="space-y-4">
+              <div className="space-y-4 mb-6">
                 {sections.map((section) => (
                   <div
                     key={section.id}
@@ -617,8 +650,44 @@ export default function AuditTool({ principles }: AuditToolProps) {
               </div>
             )}
 
+            {/* Add Section */}
+            <div className="flex gap-2 mb-4">
+              <input
+                type="text"
+                value={newSectionName}
+                onChange={(e) => setNewSectionName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addSection(newSectionName)}
+                placeholder="Section name..."
+                className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+                disabled={isAnalyzing}
+              />
+              <button
+                onClick={() => addSection(newSectionName)}
+                disabled={!newSectionName.trim() || isAnalyzing}
+                className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed"
+              >
+                Add Section
+              </button>
+            </div>
+
+            {/* Presets */}
+            {SECTION_PRESETS.filter((p) => !sections.some((s) => s.name === p)).length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {SECTION_PRESETS.filter((p) => !sections.some((s) => s.name === p)).map((preset) => (
+                  <button
+                    key={preset}
+                    onClick={() => addSection(preset)}
+                    disabled={isAnalyzing}
+                    className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-full text-xs hover:bg-slate-200 disabled:opacity-50"
+                  >
+                    + {preset}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {sections.length === 0 && (
-              <div className="text-center py-8 text-slate-500 text-sm">
+              <div className="text-center py-8 text-slate-500 text-sm border-t border-slate-100 mt-4">
                 Add sections to get started. Each section can have up to 5 screenshots.
               </div>
             )}
@@ -670,6 +739,7 @@ export default function AuditTool({ principles }: AuditToolProps) {
             </div>
           ) : (
             <FollowUpQuestions
+              key={lowScoringPrinciples.map((p) => p.id).join(',')}
               lowScoringPrinciples={lowScoringPrinciples}
               onComplete={handleFollowUpComplete}
               onSkip={handleFollowUpSkip}
@@ -728,7 +798,7 @@ export default function AuditTool({ principles }: AuditToolProps) {
         <div className="space-y-6">
           {/* Results Tabs (if section-based) */}
           {sectionResults.length > 0 && (
-            <div className="flex gap-2 p-1 bg-slate-100 rounded-lg w-fit">
+            <div className="flex gap-2 p-1 bg-slate-100 rounded-lg w-fit flex-wrap">
               <button
                 onClick={() => setResultsTab('overall')}
                 className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -759,16 +829,22 @@ export default function AuditTool({ principles }: AuditToolProps) {
           <div className="bg-white rounded-lg border border-slate-200 p-6">
             <div className="text-center">
               <div className="text-4xl font-bold text-slate-900 mb-1">
-                {results.average.toFixed(1)} / 5.0
+                {activeResults?.average.toFixed(1) ?? '—'} / 5.0
               </div>
               <div className="text-slate-500">
-                Overall Score ({results.totalRated}/{totalCount} principles rated)
+                {resultsTab === 'overall' ? (
+                  <>Overall Score ({results.totalRated}/{totalCount} principles rated)</>
+                ) : (
+                  <>
+                    {sectionResults_forTab?.sectionName} Score ({sectionResults_forTab?.totalRated ?? 0} principles applicable)
+                  </>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Key Takeaways */}
-          {keyTakeaways && (
+          {/* Key Takeaways - only show on Overall tab */}
+          {resultsTab === 'overall' && keyTakeaways && (
             <div className="bg-gradient-to-r from-slate-50 to-slate-100 rounded-lg border border-slate-200 p-6">
               <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
                 <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -864,13 +940,13 @@ export default function AuditTool({ principles }: AuditToolProps) {
           )}
 
           {/* Gaps */}
-          {results.gaps.length > 0 && (
+          {activeResults && activeResults.gaps.length > 0 && (
             <div>
               <h3 className="text-lg font-semibold text-slate-900 mb-3">
-                Areas for Improvement ({results.gaps.length})
+                Areas for Improvement ({activeResults.gaps.length})
               </h3>
               <div className="space-y-3">
-                {results.gaps.map((gap) => (
+                {activeResults.gaps.map((gap) => (
                   <div
                     key={gap.id}
                     className="bg-white rounded-lg border border-amber-200 p-4"
@@ -884,7 +960,7 @@ export default function AuditTool({ principles }: AuditToolProps) {
                         >
                           {gap.category}
                         </span>
-                        {gap.contributingSection && (
+                        {'contributingSection' in gap && gap.contributingSection && (
                           <span className="text-xs text-slate-400">
                             from: {gap.contributingSection}
                           </span>
@@ -894,6 +970,9 @@ export default function AuditTool({ principles }: AuditToolProps) {
                         {gap.score}/5
                       </span>
                     </div>
+                    {'reasoning' in gap && gap.reasoning && resultsTab !== 'overall' && (
+                      <p className="text-sm text-slate-600 mb-2 italic">"{gap.reasoning}"</p>
+                    )}
                     <p className="text-sm text-slate-600 mb-3">{gap.recommendation}</p>
                     <a
                       href={`/principles/${gap.id}`}
@@ -908,23 +987,51 @@ export default function AuditTool({ principles }: AuditToolProps) {
           )}
 
           {/* Strengths */}
-          {results.strengths.length > 0 && (
+          {activeResults && activeResults.strengths.length > 0 && (
             <div>
               <h3 className="text-lg font-semibold text-slate-900 mb-3">
-                Strengths ({results.strengths.length})
+                Strengths ({activeResults.strengths.length})
               </h3>
               <div className="bg-white rounded-lg border border-green-200 p-4">
                 <ul className="space-y-2">
-                  {results.strengths.map((s) => (
-                    <li key={s.id} className="flex items-center gap-2 flex-wrap">
+                  {activeResults.strengths.map((s) => (
+                    <li key={s.id} className="flex items-start gap-2 flex-wrap">
                       <span className="text-green-600">&#10003;</span>
-                      <span className="text-slate-900">{s.title}</span>
-                      <span className="text-sm text-slate-500">({s.score}/5)</span>
-                      {s.contributingSection && (
-                        <span className="text-xs text-slate-400">
-                          from: {s.contributingSection}
-                        </span>
-                      )}
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-slate-900">{s.title}</span>
+                          <span className="text-sm text-slate-500">({s.score}/5)</span>
+                          {'contributingSection' in s && s.contributingSection && (
+                            <span className="text-xs text-slate-400">
+                              from: {s.contributingSection}
+                            </span>
+                          )}
+                        </div>
+                        {'reasoning' in s && s.reasoning && resultsTab !== 'overall' && (
+                          <p className="text-sm text-slate-500 mt-1 italic">"{s.reasoning}"</p>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {/* Not Applicable - only for section view */}
+          {resultsTab !== 'overall' && sectionResults_forTab?.notApplicable && sectionResults_forTab.notApplicable.length > 0 && (
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900 mb-3">
+                Not Applicable ({sectionResults_forTab.notApplicable.length})
+              </h3>
+              <div className="bg-white rounded-lg border border-slate-200 p-4">
+                <p className="text-sm text-slate-500 mb-2">
+                  These principles weren't applicable to the {sectionResults_forTab.sectionName} section:
+                </p>
+                <ul className="space-y-1">
+                  {sectionResults_forTab.notApplicable.map((item) => (
+                    <li key={item.id} className="text-sm text-slate-600">
+                      • {item.title}
                     </li>
                   ))}
                 </ul>
@@ -937,9 +1044,27 @@ export default function AuditTool({ principles }: AuditToolProps) {
             <div className="flex gap-3">
               <button
                 onClick={copyResults}
-                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 text-sm font-medium"
+                className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${
+                  copied
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
               >
-                Copy Results
+                {copied ? (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    Copy Results
+                  </>
+                )}
               </button>
               <button
                 onClick={shareReport}
