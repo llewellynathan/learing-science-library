@@ -3,6 +3,7 @@ import { getCollection } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import PrincipleCard from '../components/PrincipleCard.astro';
 import CategoryFilter from '../components/CategoryFilter.astro';
+import Search from '../components/react/Search';
 
 const allPrinciples = await getCollection('principles');
 
@@ -19,6 +20,15 @@ const categories = [
 const sortedPrinciples = allPrinciples.sort((a, b) =>
   a.data.title.localeCompare(b.data.title)
 );
+
+// Prepare principles data for the search component
+const searchPrinciples = sortedPrinciples.map((p) => ({
+  id: p.id,
+  title: p.data.title,
+  category: p.data.category,
+  summary: p.data.summary,
+  tags: p.data.tags,
+}));
 ---
 
 <BaseLayout title="Home">
@@ -28,6 +38,8 @@ const sortedPrinciples = allPrinciples.sort((a, b) =>
       Research-backed principles for designing effective learning experiences.
     </p>
   </div>
+
+  <Search client:load principles={searchPrinciples} />
 
   <CategoryFilter categories={categories} />
 
