@@ -17,6 +17,7 @@ const principles = defineCollection({
     relatedPrinciples: z.array(z.string()).optional(),
     keyResearchers: z.array(z.string()).optional(),
     summary: z.string(),
+    essential: z.boolean().optional().default(false),
   }),
 });
 
