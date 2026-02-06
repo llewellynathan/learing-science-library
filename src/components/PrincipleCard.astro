@@ -20,7 +20,8 @@ const categoryColors: Record<string, string> = {
 
 <a
   href={`/principles/${principle.id}`}
-  class="block bg-white rounded-lg border border-slate-200 p-6 hover:shadow-md hover:border-slate-300 transition-all"
+  class="principle-card block bg-white rounded-lg border border-slate-200 p-6 hover:shadow-md hover:border-slate-300 transition-all"
+  data-category={category}
 >
   <span class={`inline-block px-2 py-0.5 rounded text-xs font-medium mb-3 ${categoryColors[category]}`}>
     {category}

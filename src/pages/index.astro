@@ -5,8 +5,6 @@ import PrincipleCard from '../components/PrincipleCard.astro';
 import CategoryFilter from '../components/CategoryFilter.astro';
 
 const allPrinciples = await getCollection('principles');
-const url = Astro.url;
-const activeCategory = url.searchParams.get('category');
 
 const categories = [
   'Memory & Retention',
@@ -17,12 +15,8 @@ const categories = [
   'Transfer & Application',
 ];
 
-const filteredPrinciples = activeCategory
-  ? allPrinciples.filter((p) => p.data.category === activeCategory)
-  : allPrinciples;
-
 // Sort alphabetically by title
-const sortedPrinciples = filteredPrinciples.sort((a, b) =>
+const sortedPrinciples = allPrinciples.sort((a, b) =>
   a.data.title.localeCompare(b.data.title)
 );
 ---
@@ -35,15 +29,84 @@ const sortedPrinciples = filteredPrinciples.sort((a, b) =>
     </p>
   </div>
 
-  <CategoryFilter categories={categories} activeCategory={activeCategory} />
+  <CategoryFilter categories={categories} />
 
   {sortedPrinciples.length === 0 ? (
     <p class="text-slate-500 text-center py-12">No principles found. Check back soon.</p>
   ) : (
-    <div class="grid gap-4 md:grid-cols-2">
+    <div class="grid gap-4 md:grid-cols-2" id="principles-grid">
       {sortedPrinciples.map((principle) => (
         <PrincipleCard principle={principle} />
       ))}
     </div>
   )}
 </BaseLayout>
+
+<script>
+  const filterButtons = document.querySelectorAll('.category-btn');
+  const cards = document.querySelectorAll('.principle-card');
+
+  const categoryColors: Record<string, { active: string; inactive: string }> = {
+    'Memory & Retention': {
+      active: 'bg-purple-100 text-purple-800 hover:bg-purple-200 ring-2 ring-purple-400 ring-offset-2',
+      inactive: 'bg-purple-100 text-purple-800 hover:bg-purple-200',
+    },
+    'Practice & Skill Building': {
+      active: 'bg-green-100 text-green-800 hover:bg-green-200 ring-2 ring-green-400 ring-offset-2',
+      inactive: 'bg-green-100 text-green-800 hover:bg-green-200',
+    },
+    'Motivation & Engagement': {
+      active: 'bg-orange-100 text-orange-800 hover:bg-orange-200 ring-2 ring-orange-400 ring-offset-2',
+      inactive: 'bg-orange-100 text-orange-800 hover:bg-orange-200',
+    },
+    'Cognitive Load': {
+      active: 'bg-blue-100 text-blue-800 hover:bg-blue-200 ring-2 ring-blue-400 ring-offset-2',
+      inactive: 'bg-blue-100 text-blue-800 hover:bg-blue-200',
+    },
+    'Feedback & Assessment': {
+      active: 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 ring-2 ring-yellow-400 ring-offset-2',
+      inactive: 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200',
+    },
+    'Transfer & Application': {
+      active: 'bg-pink-100 text-pink-800 hover:bg-pink-200 ring-2 ring-pink-400 ring-offset-2',
+      inactive: 'bg-pink-100 text-pink-800 hover:bg-pink-200',
+    },
+  };
+
+  filterButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const selectedCategory = (btn as HTMLElement).dataset.category || '';
+
+      // Update button styles
+      filterButtons.forEach((b) => {
+        const category = (b as HTMLElement).dataset.category || '';
+        if (category === '') {
+          // "All" button
+          if (selectedCategory === '') {
+            b.className = 'category-btn px-3 py-1.5 rounded-full text-sm font-medium transition-colors bg-slate-900 text-white';
+          } else {
+            b.className = 'category-btn px-3 py-1.5 rounded-full text-sm font-medium transition-colors bg-slate-100 text-slate-600 hover:bg-slate-200';
+          }
+        } else {
+          // Category buttons
+          const colors = categoryColors[category];
+          if (category === selectedCategory) {
+            b.className = `category-btn px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${colors.active}`;
+          } else {
+            b.className = `category-btn px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${colors.inactive}`;
+          }
+        }
+      });
+
+      // Filter cards
+      cards.forEach((card) => {
+        const cardCategory = (card as HTMLElement).dataset.category;
+        if (selectedCategory === '' || cardCategory === selectedCategory) {
+          (card as HTMLElement).style.display = '';
+        } else {
+          (card as HTMLElement).style.display = 'none';
+        }
+      });
+    });
+  });
+</script>
