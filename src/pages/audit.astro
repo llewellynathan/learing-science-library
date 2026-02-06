@@ -1,0 +1,32 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import AuditTool from '../components/react/AuditTool';
+
+const allPrinciples = await getCollection('principles');
+
+// Get only essential principles, sorted alphabetically
+const essentialPrinciples = allPrinciples
+  .filter((p) => p.data.essential)
+  .sort((a, b) => a.data.title.localeCompare(b.data.title));
+
+// Prepare data for the React component
+const principlesData = essentialPrinciples.map((p) => ({
+  id: p.id,
+  title: p.data.title,
+  category: p.data.category,
+  summary: p.data.summary,
+}));
+---
+
+<BaseLayout title="Audit Your Learning Design">
+  <div class="mb-8">
+    <h1 class="text-3xl font-bold text-slate-900 mb-2">Audit Your Learning Design</h1>
+    <p class="text-slate-600">
+      Evaluate your learning experience against the 13 essential principles of learning science.
+      Rate each principle to identify strengths and areas for improvement.
+    </p>
+  </div>
+
+  <AuditTool client:load principles={principlesData} />
+</BaseLayout>

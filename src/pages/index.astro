@@ -3,6 +3,7 @@ import { getCollection } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import PrincipleCard from '../components/PrincipleCard.astro';
 import CategoryFilter from '../components/CategoryFilter.astro';
+import EssentialPrinciples from '../components/EssentialPrinciples.astro';
 import Search from '../components/react/Search';
 
 const allPrinciples = await getCollection('principles');
@@ -21,7 +22,11 @@ const sortedPrinciples = allPrinciples.sort((a, b) =>
   a.data.title.localeCompare(b.data.title)
 );
 
-// Prepare principles data for the search component
+// Separate essential and regular principles
+const essentialPrinciples = sortedPrinciples.filter((p) => p.data.essential);
+const regularPrinciples = sortedPrinciples.filter((p) => !p.data.essential);
+
+// Prepare principles data for the search component (search includes ALL principles)
 const searchPrinciples = sortedPrinciples.map((p) => ({
   id: p.id,
   title: p.data.title,
@@ -39,15 +44,21 @@ const searchPrinciples = sortedPrinciples.map((p) => ({
     </p>
   </div>
 
+  {essentialPrinciples.length > 0 && (
+    <EssentialPrinciples principles={essentialPrinciples} />
+  )}
+
+  <h2 class="text-xl font-bold text-slate-900 mb-4">Browse All Principles</h2>
+
   <Search client:load principles={searchPrinciples} />
 
   <CategoryFilter categories={categories} />
 
-  {sortedPrinciples.length === 0 ? (
+  {regularPrinciples.length === 0 ? (
     <p class="text-slate-500 text-center py-12">No principles found. Check back soon.</p>
   ) : (
     <div class="grid gap-4 md:grid-cols-2" id="principles-grid">
-      {sortedPrinciples.map((principle) => (
+      {regularPrinciples.map((principle) => (
         <PrincipleCard principle={principle} />
       ))}
     </div>
