@@ -2,7 +2,9 @@ import { useState, useMemo, useCallback } from 'react';
 import RatingScale from './RatingScale';
 import ImageUpload from './ImageUpload';
 import FollowUpQuestions, { type FollowUpAnswer } from './FollowUpQuestions';
+import UpfrontContextModal from './UpfrontContextModal';
 import { auditData } from '../../data/auditPrompts';
+import { type UpfrontContextAnswers } from '../../data/upfrontQuestions';
 
 type Category =
   | 'Memory & Retention'
@@ -104,6 +106,10 @@ export default function AuditTool({ principles }: AuditToolProps) {
   const [showFollowUp, setShowFollowUp] = useState(false);
   const [isRefining, setIsRefining] = useState(false);
   const [refinedScores, setRefinedScores] = useState<RefinedScore[]>([]);
+
+  // Upfront context state
+  const [showUpfrontModal, setShowUpfrontModal] = useState(false);
+  const [upfrontContext, setUpfrontContext] = useState<UpfrontContextAnswers>({});
 
   const completedCount = Object.values(ratings).filter((r) => r !== null).length;
   const totalCount = principles.length;
@@ -319,10 +325,19 @@ export default function AuditTool({ principles }: AuditToolProps) {
     );
   }, []);
 
-  const analyzeSections = useCallback(async () => {
+  // Show upfront context modal before analysis
+  const analyzeSections = useCallback(() => {
+    const sectionsWithImages = sections.filter((s) => s.images.length > 0);
+    if (sectionsWithImages.length === 0) return;
+    setShowUpfrontModal(true);
+  }, [sections]);
+
+  // Actually run the analysis (called after upfront modal)
+  const runAnalysis = useCallback(async (context: UpfrontContextAnswers) => {
     const sectionsWithImages = sections.filter((s) => s.images.length > 0);
     if (sectionsWithImages.length === 0) return;
 
+    setUpfrontContext(context);
     setIsAnalyzing(true);
     setError(null);
     setSectionResults([]);
@@ -350,6 +365,7 @@ export default function AuditTool({ principles }: AuditToolProps) {
             images: imageData,
             sectionName: section.name,
             sectionNotes: section.notes || undefined,
+            upfrontContext: Object.keys(context).length > 0 ? context : undefined,
           }),
         });
 
@@ -399,6 +415,18 @@ export default function AuditTool({ principles }: AuditToolProps) {
     }
   }, [sections, principles]);
 
+  // Handle upfront context modal completion
+  const handleUpfrontComplete = useCallback((context: UpfrontContextAnswers) => {
+    setShowUpfrontModal(false);
+    runAnalysis(context);
+  }, [runAnalysis]);
+
+  // Handle upfront context modal skip
+  const handleUpfrontSkip = useCallback(() => {
+    setShowUpfrontModal(false);
+    runAnalysis({});
+  }, [runAnalysis]);
+
   const resetAudit = useCallback(() => {
     setRatings(Object.fromEntries(principles.map((p) => [p.id, null])));
     setSections([]);
@@ -408,6 +436,8 @@ export default function AuditTool({ principles }: AuditToolProps) {
     setRefinedScores([]);
     setError(null);
     setResultsTab('overall');
+    setShowUpfrontModal(false);
+    setUpfrontContext({});
   }, [principles]);
 
   // Handle follow-up completion
@@ -572,6 +602,14 @@ export default function AuditTool({ principles }: AuditToolProps) {
 
   return (
     <div className="space-y-8">
+      {/* Upfront Context Modal */}
+      {showUpfrontModal && (
+        <UpfrontContextModal
+          onComplete={handleUpfrontComplete}
+          onSkip={handleUpfrontSkip}
+        />
+      )}
+
       {/* Mode Toggle */}
       <div className="flex gap-2 p-1 bg-slate-100 rounded-lg w-fit">
         <button
