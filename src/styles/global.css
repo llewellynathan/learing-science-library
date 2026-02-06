@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+/*
+ * Typography Scale (4 sizes only)
+ * --------------------------------
+ * Title:    2rem (32px) - Page title only
+ * Body:     1.125rem (18px) - Body text, summary, h2 content
+ * Action:   1rem (16px) - Links, list items
+ * Meta:     0.875rem (14px) - Tags, labels, researchers
+ *
+ * Hierarchy through weight, color, case—not more sizes
+ */
+
+.principle-article {
+  --color-primary: theme(colors.slate.900);
+  --color-secondary: theme(colors.slate.600);
+  --color-muted: theme(colors.slate.400);
+}
+
+/* Body text - the default */
+.principle-article {
+  font-size: 1.125rem;
+  line-height: 1.7;
+  color: var(--color-secondary);
+}
+
+/* Section headings - same size as body, differentiated by weight + uppercase */
+.principle-article h2 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+  margin-top: 3rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid theme(colors.slate.200);
+}
+
+/* Subheadings within sections - weight only, no size change */
+.principle-article h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+/* Paragraphs */
+.principle-article p {
+  margin-bottom: 1.25rem;
+}
+
+/* Lists - slightly smaller for density */
+.principle-article ul,
+.principle-article ol {
+  margin-bottom: 1.25rem;
+  padding-left: 1.5rem;
+}
+
+.principle-article li {
+  font-size: 1rem;
+  line-height: 1.6;
+  margin-bottom: 0.5rem;
+}
+
+/* Strong/Bold - weight emphasis only */
+.principle-article strong {
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+/* Links */
+.principle-article a {
+  color: theme(colors.blue.600);
+  text-decoration: underline;
+  text-decoration-color: theme(colors.blue.200);
+  text-underline-offset: 2px;
+}
+
+.principle-article a:hover {
+  text-decoration-color: theme(colors.blue.600);
+}
+
+/* Emphasis */
+.principle-article em {
+  font-style: italic;
+}

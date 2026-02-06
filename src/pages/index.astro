@@ -1,0 +1,49 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PrincipleCard from '../components/PrincipleCard.astro';
+import CategoryFilter from '../components/CategoryFilter.astro';
+
+const allPrinciples = await getCollection('principles');
+const url = Astro.url;
+const activeCategory = url.searchParams.get('category');
+
+const categories = [
+  'Memory & Retention',
+  'Practice & Skill Building',
+  'Motivation & Engagement',
+  'Cognitive Load',
+  'Feedback & Assessment',
+  'Transfer & Application',
+];
+
+const filteredPrinciples = activeCategory
+  ? allPrinciples.filter((p) => p.data.category === activeCategory)
+  : allPrinciples;
+
+// Sort alphabetically by title
+const sortedPrinciples = filteredPrinciples.sort((a, b) =>
+  a.data.title.localeCompare(b.data.title)
+);
+---
+
+<BaseLayout title="Home">
+  <div class="mb-8">
+    <h1 class="text-3xl font-bold text-slate-900 mb-2">Learning Science Principles</h1>
+    <p class="text-slate-600">
+      Research-backed principles for designing effective learning experiences.
+    </p>
+  </div>
+
+  <CategoryFilter categories={categories} activeCategory={activeCategory} />
+
+  {sortedPrinciples.length === 0 ? (
+    <p class="text-slate-500 text-center py-12">No principles found. Check back soon.</p>
+  ) : (
+    <div class="grid gap-4 md:grid-cols-2">
+      {sortedPrinciples.map((principle) => (
+        <PrincipleCard principle={principle} />
+      ))}
+    </div>
+  )}
+</BaseLayout>
