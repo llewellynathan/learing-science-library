@@ -1,3 +1,5 @@
+export type SectionType = 'quiz' | 'lesson' | 'practice' | 'review' | 'onboarding' | 'overall';
+
 export interface UpfrontQuestionOption {
   value: string;
   label: string;
@@ -10,6 +12,8 @@ export interface UpfrontQuestion {
   question: string;
   options: UpfrontQuestionOption[];
   freeTextPrompt: string;
+  /** Which section types this question applies to. 'overall' means full experience audits. */
+  appliesTo: SectionType[];
 }
 
 export interface UpfrontContextAnswers {
@@ -19,11 +23,79 @@ export interface UpfrontContextAnswers {
   };
 }
 
+/**
+ * Detect section type from section name
+ */
+export function detectSectionType(sectionName: string): SectionType {
+  const name = sectionName.toLowerCase();
+
+  // Quiz/Assessment patterns
+  if (/quiz|test|assessment|exam|check|question/.test(name)) {
+    return 'quiz';
+  }
+
+  // Practice/Activity patterns
+  if (/practice|exercise|activity|game|drill|challenge/.test(name)) {
+    return 'practice';
+  }
+
+  // Review patterns
+  if (/review|summary|recap|revisit|refresh/.test(name)) {
+    return 'review';
+  }
+
+  // Onboarding patterns
+  if (/onboard|welcome|intro|getting started|tutorial/.test(name)) {
+    return 'onboarding';
+  }
+
+  // Lesson/Instruction patterns (default for content-like sections)
+  if (/lesson|instruction|content|learn|module|video|lecture|read/.test(name)) {
+    return 'lesson';
+  }
+
+  // Default to lesson for unrecognized names
+  return 'lesson';
+}
+
+/**
+ * Get unique section types from a list of section names
+ */
+export function getSectionTypes(sectionNames: string[]): SectionType[] {
+  const types = new Set<SectionType>();
+  for (const name of sectionNames) {
+    types.add(detectSectionType(name));
+  }
+  return Array.from(types);
+}
+
+/**
+ * Filter questions based on detected section types
+ */
+export function getRelevantQuestions(sectionNames: string[]): UpfrontQuestion[] {
+  const types = getSectionTypes(sectionNames);
+
+  // If multiple section types, include 'overall' questions too
+  const includeOverall = types.length > 1;
+
+  return upfrontQuestions.filter((q) => {
+    // Check if question applies to any of the detected section types
+    const matchesSectionType = q.appliesTo.some((t) => types.includes(t));
+
+    // Include overall questions if auditing multiple section types
+    const isOverallQuestion = q.appliesTo.includes('overall');
+
+    return matchesSectionType || (includeOverall && isOverallQuestion);
+  });
+}
+
 export const upfrontQuestions: UpfrontQuestion[] = [
+  // === OVERALL / MULTI-SECTION QUESTIONS ===
   {
     id: 'spaced-learning',
     principleIds: ['spaced-repetition'],
     question: 'How does your learning experience handle review and repetition over time?',
+    appliesTo: ['overall', 'review'],
     options: [
       {
         value: 'none',
@@ -53,70 +125,250 @@ export const upfrontQuestions: UpfrontQuestion[] = [
     ],
     freeTextPrompt: 'Describe any other spacing or review features:',
   },
+
+  // === QUIZ / ASSESSMENT QUESTIONS ===
   {
-    id: 'adaptive-difficulty',
-    principleIds: ['deliberate-practice', 'desirable-difficulties'],
-    question: 'How does difficulty adjust to the individual learner?',
+    id: 'quiz-feedback',
+    principleIds: ['retrieval-practice', 'elaboration'],
+    question: 'What kind of feedback do learners receive on quiz questions?',
+    appliesTo: ['quiz'],
     options: [
       {
         value: 'none',
-        label: 'Same content and difficulty for all learners',
-        scoringHint: 'No personalization or adaptive difficulty - score 1-2',
+        label: 'No feedback - just a final score',
+        scoringHint: 'No feedback on individual questions - retrieval practice score 2, elaboration score 1',
       },
       {
-        value: 'levels',
-        label: 'Users choose their level (beginner/intermediate/advanced)',
-        scoringHint: 'User-selected difficulty levels only - score 2-3',
+        value: 'correct-incorrect',
+        label: 'Shows whether each answer was correct or incorrect',
+        scoringHint: 'Basic correctness feedback - retrieval practice score 3, elaboration score 2',
       },
       {
-        value: 'linear-progression',
-        label: 'Difficulty increases as users progress through content',
-        scoringHint: 'Linear difficulty progression - score 3',
+        value: 'correct-answer',
+        label: 'Shows the correct answer after incorrect responses',
+        scoringHint: 'Answer revelation feedback - retrieval practice score 3-4, elaboration score 2-3',
       },
       {
-        value: 'adaptive-performance',
-        label: 'System adjusts difficulty based on user performance',
-        scoringHint: 'Performance-based adaptive difficulty - score 4',
+        value: 'explanation',
+        label: 'Explains WHY the answer is correct or incorrect',
+        scoringHint: 'Explanatory feedback - retrieval practice score 4, elaboration score 4',
       },
       {
-        value: 'targeted-practice',
-        label: 'System identifies weak areas and provides focused practice',
-        scoringHint: 'Deliberate practice with weakness targeting - score 5',
+        value: 'adaptive-explanation',
+        label: 'Provides personalized explanations based on the specific mistake',
+        scoringHint: 'Adaptive explanatory feedback - retrieval practice score 5, elaboration score 5',
       },
     ],
-    freeTextPrompt: 'Describe how the system adapts to learners:',
+    freeTextPrompt: 'Describe the feedback learners receive:',
   },
   {
-    id: 'content-mixing',
+    id: 'quiz-randomization',
+    principleIds: ['interleaving', 'desirable-difficulties'],
+    question: 'How are questions presented in this quiz?',
+    appliesTo: ['quiz'],
+    options: [
+      {
+        value: 'fixed',
+        label: 'Same questions in the same order every time',
+        scoringHint: 'Fixed question order - interleaving score 1-2',
+      },
+      {
+        value: 'shuffled',
+        label: 'Question order is randomized',
+        scoringHint: 'Randomized order - interleaving score 3',
+      },
+      {
+        value: 'pool',
+        label: 'Questions are drawn from a larger pool',
+        scoringHint: 'Question pool with variation - interleaving score 3-4',
+      },
+      {
+        value: 'mixed-topics',
+        label: 'Questions from different topics are mixed together',
+        scoringHint: 'Topic interleaving within quiz - interleaving score 4',
+      },
+      {
+        value: 'adaptive-selection',
+        label: 'Questions are selected based on learner performance',
+        scoringHint: 'Adaptive question selection - interleaving score 4-5, desirable-difficulties score 4-5',
+      },
+    ],
+    freeTextPrompt: 'Describe how questions are selected or ordered:',
+  },
+
+  // === PRACTICE / ACTIVITY QUESTIONS ===
+  {
+    id: 'practice-difficulty',
+    principleIds: ['deliberate-practice', 'desirable-difficulties'],
+    question: 'How does difficulty progress in practice activities?',
+    appliesTo: ['practice'],
+    options: [
+      {
+        value: 'fixed',
+        label: 'Same difficulty throughout',
+        scoringHint: 'No difficulty progression - deliberate-practice score 1-2',
+      },
+      {
+        value: 'user-selected',
+        label: 'User chooses difficulty level',
+        scoringHint: 'User-controlled difficulty - deliberate-practice score 2-3',
+      },
+      {
+        value: 'linear',
+        label: 'Difficulty increases as user progresses',
+        scoringHint: 'Linear difficulty progression - deliberate-practice score 3',
+      },
+      {
+        value: 'adaptive',
+        label: 'Difficulty adjusts based on performance',
+        scoringHint: 'Adaptive difficulty - deliberate-practice score 4',
+      },
+      {
+        value: 'targeted',
+        label: 'System targets weak areas with appropriate challenge',
+        scoringHint: 'Targeted practice at edge of ability - deliberate-practice score 5',
+      },
+    ],
+    freeTextPrompt: 'Describe how difficulty is managed:',
+  },
+  {
+    id: 'practice-mixing',
     principleIds: ['interleaving'],
-    question: 'How are different topics or problem types presented during practice?',
+    question: 'How are different skills or topics mixed in practice?',
+    appliesTo: ['practice'],
     options: [
       {
         value: 'blocked',
-        label: 'One topic/type at a time until complete, then move to next',
-        scoringHint: 'Blocked practice - no interleaving - score 1-2',
+        label: 'One skill/topic at a time until mastered',
+        scoringHint: 'Blocked practice - interleaving score 1-2',
       },
       {
-        value: 'some-variety',
-        label: 'Mostly grouped, but occasional variety within practice',
-        scoringHint: 'Minimal interleaving - score 2-3',
+        value: 'sequential',
+        label: 'Topics introduced one at a time but occasionally revisited',
+        scoringHint: 'Sequential with some review - interleaving score 2-3',
       },
       {
         value: 'mixed',
-        label: 'Different topics/types are mixed together in practice sessions',
-        scoringHint: 'Interleaved practice - score 3-4',
+        label: 'Multiple topics/skills mixed within sessions',
+        scoringHint: 'Interleaved practice - interleaving score 3-4',
       },
       {
         value: 'randomized',
-        label: 'Question order is randomized so users cannot predict what comes next',
-        scoringHint: 'Randomized interleaving - score 4',
+        label: 'Random mixing of topics - learner can\'t predict what\'s next',
+        scoringHint: 'Randomized interleaving - interleaving score 4',
       },
       {
         value: 'cumulative',
-        label: 'Previous topics reappear in later practice sessions',
-        scoringHint: 'Cumulative review with interleaving - score 5',
+        label: 'All previously learned topics can appear at any time',
+        scoringHint: 'Cumulative interleaving - interleaving score 5',
       },
     ],
-    freeTextPrompt: 'Describe how topics are mixed or sequenced:',
+    freeTextPrompt: 'Describe how topics are mixed in practice:',
+  },
+
+  // === LESSON / INSTRUCTION QUESTIONS ===
+  {
+    id: 'lesson-pacing',
+    principleIds: ['cognitive-load-theory', 'chunking'],
+    question: 'How is content paced and chunked in lessons?',
+    appliesTo: ['lesson'],
+    options: [
+      {
+        value: 'continuous',
+        label: 'Content flows continuously without breaks',
+        scoringHint: 'No chunking or pacing control - cognitive-load score 2, chunking score 1-2',
+      },
+      {
+        value: 'sections',
+        label: 'Content is divided into sections but auto-advances',
+        scoringHint: 'Some structure but no user control - cognitive-load score 3, chunking score 3',
+      },
+      {
+        value: 'self-paced',
+        label: 'Learner controls when to move to next section',
+        scoringHint: 'Self-paced with chunks - cognitive-load score 4, chunking score 4',
+      },
+      {
+        value: 'interactive-chunks',
+        label: 'Small chunks with interactions/checks between them',
+        scoringHint: 'Interactive chunking - cognitive-load score 4-5, chunking score 4-5',
+      },
+      {
+        value: 'adaptive-pacing',
+        label: 'Pacing adapts based on learner comprehension',
+        scoringHint: 'Adaptive pacing - cognitive-load score 5, chunking score 5',
+      },
+    ],
+    freeTextPrompt: 'Describe how content is paced:',
+  },
+  {
+    id: 'lesson-elaboration',
+    principleIds: ['elaboration', 'self-explanation'],
+    question: 'How does the lesson encourage deeper processing?',
+    appliesTo: ['lesson'],
+    options: [
+      {
+        value: 'passive',
+        label: 'Content is presented for passive consumption (reading/watching)',
+        scoringHint: 'Passive learning only - elaboration score 1-2, self-explanation score 1',
+      },
+      {
+        value: 'examples',
+        label: 'Includes worked examples showing how concepts apply',
+        scoringHint: 'Examples provided - elaboration score 2-3, self-explanation score 2',
+      },
+      {
+        value: 'questions',
+        label: 'Asks comprehension questions throughout',
+        scoringHint: 'Embedded questions - elaboration score 3, self-explanation score 3',
+      },
+      {
+        value: 'explain-prompts',
+        label: 'Prompts learners to explain concepts in their own words',
+        scoringHint: 'Self-explanation prompts - elaboration score 4, self-explanation score 4',
+      },
+      {
+        value: 'generation',
+        label: 'Learners must generate examples or explanations before seeing answers',
+        scoringHint: 'Generation before instruction - elaboration score 5, self-explanation score 5',
+      },
+    ],
+    freeTextPrompt: 'Describe how learners engage with content:',
+  },
+
+  // === ONBOARDING QUESTIONS ===
+  {
+    id: 'onboarding-efficacy',
+    principleIds: ['self-efficacy', 'growth-mindset'],
+    question: 'How does onboarding build learner confidence?',
+    appliesTo: ['onboarding'],
+    options: [
+      {
+        value: 'none',
+        label: 'Jumps straight into content without confidence building',
+        scoringHint: 'No confidence scaffolding - self-efficacy score 1-2',
+      },
+      {
+        value: 'overview',
+        label: 'Provides an overview of what will be learned',
+        scoringHint: 'Goal orientation only - self-efficacy score 2-3',
+      },
+      {
+        value: 'easy-wins',
+        label: 'Starts with easy tasks to build early success',
+        scoringHint: 'Early wins for confidence - self-efficacy score 4',
+      },
+      {
+        value: 'personalized',
+        label: 'Assesses prior knowledge and starts at appropriate level',
+        scoringHint: 'Personalized starting point - self-efficacy score 4-5',
+      },
+      {
+        value: 'growth-framing',
+        label: 'Explicitly frames learning as growth, normalizes mistakes',
+        scoringHint: 'Growth mindset framing - self-efficacy score 5, growth-mindset score 4-5',
+      },
+    ],
+    freeTextPrompt: 'Describe how onboarding builds confidence:',
   },
 ];

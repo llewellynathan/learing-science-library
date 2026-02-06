@@ -1,21 +1,45 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
-  upfrontQuestions,
+  getRelevantQuestions,
+  getSectionTypes,
   type UpfrontContextAnswers,
+  type SectionType,
 } from '../../data/upfrontQuestions';
 
 interface UpfrontContextModalProps {
+  sectionNames: string[];
   onComplete: (answers: UpfrontContextAnswers) => void;
   onSkip: () => void;
 }
 
+const sectionTypeLabels: Record<SectionType, string> = {
+  quiz: 'Quiz / Assessment',
+  lesson: 'Lesson / Instruction',
+  practice: 'Practice / Activity',
+  review: 'Review / Summary',
+  onboarding: 'Onboarding',
+  overall: 'Overall Experience',
+};
+
 export default function UpfrontContextModal({
+  sectionNames,
   onComplete,
   onSkip,
 }: UpfrontContextModalProps) {
+  // Get relevant questions based on section types
+  const relevantQuestions = useMemo(
+    () => getRelevantQuestions(sectionNames),
+    [sectionNames]
+  );
+
+  const detectedTypes = useMemo(
+    () => getSectionTypes(sectionNames),
+    [sectionNames]
+  );
+
   const [answers, setAnswers] = useState<UpfrontContextAnswers>(() =>
     Object.fromEntries(
-      upfrontQuestions.map((q) => [q.id, { selectedOption: '', freeText: '' }])
+      relevantQuestions.map((q) => [q.id, { selectedOption: '', freeText: '' }])
     )
   );
   const [expandedFreeText, setExpandedFreeText] = useState<Record<string, boolean>>({});
@@ -56,6 +80,12 @@ export default function UpfrontContextModal({
     onComplete(filteredAnswers);
   }, [answers, onComplete]);
 
+  // If no relevant questions (shouldn't happen, but just in case), skip modal
+  if (relevantQuestions.length === 0) {
+    onSkip();
+    return null;
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
@@ -65,14 +95,26 @@ export default function UpfrontContextModal({
             Help us understand your learning experience
           </h2>
           <p className="text-sm text-slate-600 mt-1">
-            These questions help assess aspects not visible in screenshots. Your answers
-            improve the accuracy of the analysis.
+            These questions help assess aspects not visible in screenshots.
           </p>
+
+          {/* Detected section types */}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <span className="text-xs text-slate-500">Analyzing:</span>
+            {detectedTypes.map((type) => (
+              <span
+                key={type}
+                className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-xs"
+              >
+                {sectionTypeLabels[type]}
+              </span>
+            ))}
+          </div>
         </div>
 
         {/* Questions */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {upfrontQuestions.map((question) => (
+          {relevantQuestions.map((question) => (
             <div
               key={question.id}
               className="bg-slate-50 rounded-lg p-4 border border-slate-200"

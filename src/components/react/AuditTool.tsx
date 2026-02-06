@@ -605,6 +605,7 @@ export default function AuditTool({ principles }: AuditToolProps) {
       {/* Upfront Context Modal */}
       {showUpfrontModal && (
         <UpfrontContextModal
+          sectionNames={sections.map((s) => s.name)}
           onComplete={handleUpfrontComplete}
           onSkip={handleUpfrontSkip}
         />
