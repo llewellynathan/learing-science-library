@@ -87,6 +87,8 @@ export default function AuditTool({ principles }: AuditToolProps) {
   const [analyzingSection, setAnalyzingSection] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resultsTab, setResultsTab] = useState<'overall' | string>('overall');
+  const [isSharing, setIsSharing] = useState(false);
+  const [sharedUrl, setSharedUrl] = useState<string | null>(null);
 
   const completedCount = Object.values(ratings).filter((r) => r !== null).length;
   const totalCount = principles.length;
@@ -156,6 +158,34 @@ export default function AuditTool({ principles }: AuditToolProps) {
 
     return { average, gaps, strengths, totalRated: rated.length };
   }, [ratings, principles, combinedAiScores]);
+
+  // Generate key takeaways from results
+  const keyTakeaways = useMemo(() => {
+    if (!results || results.gaps.length === 0) return null;
+
+    // Group gaps by category and find lowest average
+    const categoryAvg: Record<string, number[]> = {};
+    for (const gap of results.gaps) {
+      if (!categoryAvg[gap.category]) categoryAvg[gap.category] = [];
+      categoryAvg[gap.category].push(gap.score);
+    }
+
+    const priorityCategory = Object.entries(categoryAvg)
+      .map(([cat, scores]) => ({
+        category: cat,
+        avg: scores.reduce((a, b) => a + b, 0) / scores.length,
+        count: scores.length,
+      }))
+      .sort((a, b) => a.avg - b.avg)[0];
+
+    // Top 3 actions (already sorted by score in results.gaps)
+    const topActions = results.gaps.slice(0, 3);
+
+    // Quick wins: scores of 2-3 (easier to improve than 1s)
+    const quickWins = results.gaps.filter((g) => g.score >= 2 && g.score <= 3);
+
+    return { priorityCategory, topActions, quickWins };
+  }, [results]);
 
   const handleRating = (principleId: string, score: number) => {
     setRatings((prev) => ({ ...prev, [principleId]: score }));
@@ -285,6 +315,23 @@ export default function AuditTool({ principles }: AuditToolProps) {
       ``,
     ];
 
+    // Add Key Takeaways
+    if (keyTakeaways) {
+      lines.push(`## Key Takeaways`);
+      lines.push(``);
+      lines.push(`**Priority Focus:** ${keyTakeaways.priorityCategory.category} (avg ${keyTakeaways.priorityCategory.avg.toFixed(1)}/5)`);
+      lines.push(``);
+      lines.push(`**Top Actions:**`);
+      keyTakeaways.topActions.forEach((action, i) => {
+        lines.push(`${i + 1}. **${action.title}** (${action.score}/5) - ${action.recommendation}`);
+      });
+      if (keyTakeaways.quickWins.length > 0) {
+        lines.push(``);
+        lines.push(`**Quick Wins:** ${keyTakeaways.quickWins.map((w) => w.title).join(', ')}`);
+      }
+      lines.push(``);
+    }
+
     if (results.gaps.length > 0) {
       lines.push(`## Areas for Improvement`);
       lines.push(``);
@@ -306,10 +353,44 @@ export default function AuditTool({ principles }: AuditToolProps) {
     navigator.clipboard.writeText(lines.join('\n'));
   };
 
-  const shareUrl = () => {
+  const shareLegacyUrl = () => {
     const scores = principles.map((p) => ratings[p.id] ?? 0).join(',');
     const url = `${window.location.origin}/audit?r=${scores}`;
     navigator.clipboard.writeText(url);
+  };
+
+  const shareReport = async () => {
+    if (!results) return;
+
+    setIsSharing(true);
+    setSharedUrl(null);
+
+    try {
+      const response = await fetch('/api/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          overallScore: results.average,
+          ratings,
+          sectionResults: sectionResults.length > 0 ? sectionResults : null,
+          keyTakeaways,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to share report');
+      }
+
+      const data = await response.json();
+      const fullUrl = `${window.location.origin}${data.url}`;
+      setSharedUrl(fullUrl);
+      navigator.clipboard.writeText(fullUrl);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to share report');
+    } finally {
+      setIsSharing(false);
+    }
   };
 
   // Parse URL params on mount
@@ -571,6 +652,69 @@ export default function AuditTool({ principles }: AuditToolProps) {
             </div>
           </div>
 
+          {/* Key Takeaways */}
+          {keyTakeaways && (
+            <div className="bg-gradient-to-r from-slate-50 to-slate-100 rounded-lg border border-slate-200 p-6">
+              <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+                Key Takeaways
+              </h3>
+
+              <div className="space-y-4">
+                {/* Priority Category */}
+                <div className="bg-white rounded-lg p-4 border border-slate-200">
+                  <div className="text-sm font-medium text-slate-500 mb-1">Priority Focus Area</div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`px-2 py-1 text-sm rounded-full ${categoryColors[keyTakeaways.priorityCategory.category as Category].bg} ${categoryColors[keyTakeaways.priorityCategory.category as Category].text}`}
+                    >
+                      {keyTakeaways.priorityCategory.category}
+                    </span>
+                    <span className="text-sm text-slate-600">
+                      (avg {keyTakeaways.priorityCategory.avg.toFixed(1)}/5 across {keyTakeaways.priorityCategory.count} principle{keyTakeaways.priorityCategory.count !== 1 ? 's' : ''})
+                    </span>
+                  </div>
+                </div>
+
+                {/* Top Actions */}
+                <div className="bg-white rounded-lg p-4 border border-slate-200">
+                  <div className="text-sm font-medium text-slate-500 mb-2">Top Actions</div>
+                  <ol className="space-y-2">
+                    {keyTakeaways.topActions.map((action, i) => (
+                      <li key={action.id} className="flex items-start gap-2">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-slate-900 text-white text-xs flex items-center justify-center">
+                          {i + 1}
+                        </span>
+                        <div>
+                          <span className="font-medium text-slate-900">{action.title}</span>
+                          <span className="text-slate-400 ml-1">({action.score}/5)</span>
+                          <p className="text-sm text-slate-600 mt-0.5">{action.recommendation}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+
+                {/* Quick Wins */}
+                {keyTakeaways.quickWins.length > 0 && (
+                  <div className="bg-white rounded-lg p-4 border border-green-200">
+                    <div className="text-sm font-medium text-green-700 mb-2 flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      Quick Wins
+                    </div>
+                    <p className="text-sm text-slate-600">
+                      {keyTakeaways.quickWins.map((w) => w.title).join(', ')} {keyTakeaways.quickWins.length === 1 ? 'is' : 'are'} at {keyTakeaways.quickWins.length === 1 ? `${keyTakeaways.quickWins[0].score}/5` : '2-3/5'} — small improvements could push {keyTakeaways.quickWins.length === 1 ? 'this' : 'these'} to strengths.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Gaps */}
           {results.gaps.length > 0 && (
             <div>
@@ -641,19 +785,43 @@ export default function AuditTool({ principles }: AuditToolProps) {
           )}
 
           {/* Actions */}
-          <div className="flex gap-3">
-            <button
-              onClick={copyResults}
-              className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 text-sm font-medium"
-            >
-              Copy Results
-            </button>
-            <button
-              onClick={shareUrl}
-              className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 text-sm font-medium"
-            >
-              Copy Share Link
-            </button>
+          <div className="space-y-3">
+            <div className="flex gap-3">
+              <button
+                onClick={copyResults}
+                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 text-sm font-medium"
+              >
+                Copy Results
+              </button>
+              <button
+                onClick={shareReport}
+                disabled={isSharing}
+                className="px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 disabled:bg-slate-400 text-sm font-medium flex items-center gap-2"
+              >
+                {isSharing ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Sharing...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                    </svg>
+                    Share Report
+                  </>
+                )}
+              </button>
+            </div>
+            {sharedUrl && (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                <div className="text-sm text-green-800 font-medium mb-1">Report shared! Link copied to clipboard.</div>
+                <div className="text-sm text-green-700 font-mono break-all">{sharedUrl}</div>
+              </div>
+            )}
           </div>
         </div>
       ) : (mode === 'manual' || sectionResults.length > 0) ? (
