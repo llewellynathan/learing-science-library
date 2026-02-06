@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import RatingScale from './RatingScale';
 import ImageUpload from './ImageUpload';
+import FollowUpQuestions, { type FollowUpAnswer } from './FollowUpQuestions';
 import { auditData } from '../../data/auditPrompts';
 
 type Category =
@@ -47,6 +48,14 @@ interface SectionResult {
   scores: Record<string, AIScore>;
 }
 
+interface RefinedScore {
+  principleId: string;
+  originalScore: number;
+  refinedScore: number;
+  refinedReasoning: string;
+  specificActions: string[];
+}
+
 const categoryColors: Record<Category, { bg: string; text: string }> = {
   'Memory & Retention': { bg: 'bg-purple-100', text: 'text-purple-800' },
   'Practice & Skill Building': { bg: 'bg-green-100', text: 'text-green-800' },
@@ -90,6 +99,11 @@ export default function AuditTool({ principles }: AuditToolProps) {
   const [isSharing, setIsSharing] = useState(false);
   const [sharedUrl, setSharedUrl] = useState<string | null>(null);
 
+  // Follow-up questions state
+  const [showFollowUp, setShowFollowUp] = useState(false);
+  const [isRefining, setIsRefining] = useState(false);
+  const [refinedScores, setRefinedScores] = useState<RefinedScore[]>([]);
+
   const completedCount = Object.values(ratings).filter((r) => r !== null).length;
   const totalCount = principles.length;
   const allCompleted = completedCount === totalCount;
@@ -119,6 +133,24 @@ export default function AuditTool({ principles }: AuditToolProps) {
 
     return combined;
   }, [sectionResults, principles]);
+
+  // Identify low-scoring principles for follow-up
+  const lowScoringPrinciples = useMemo(() => {
+    if (!combinedAiScores) return [];
+
+    return Object.entries(combinedAiScores)
+      .filter(([, score]) => score.score <= 3 && !score.notApplicable)
+      .map(([id, score]) => {
+        const principle = principles.find((p) => p.id === id)!;
+        return {
+          id,
+          title: principle.title,
+          score: score.score,
+          reasoning: score.reasoning,
+        };
+      })
+      .sort((a, b) => a.score - b.score);
+  }, [combinedAiScores, principles]);
 
   const results = useMemo(() => {
     const rated = Object.entries(ratings).filter(([, score]) => score !== null);
@@ -293,6 +325,13 @@ export default function AuditTool({ principles }: AuditToolProps) {
 
     setIsAnalyzing(false);
     setAnalyzingSection(null);
+
+    // Check for low-scoring principles to trigger follow-up
+    const lowScoring = Object.entries(newRatings)
+      .filter(([, score]) => score !== null && score <= 3);
+    if (lowScoring.length > 0) {
+      setShowFollowUp(true);
+    }
   }, [sections, principles]);
 
   const resetAudit = useCallback(() => {
@@ -300,9 +339,59 @@ export default function AuditTool({ principles }: AuditToolProps) {
     setSections([]);
     setSectionResults([]);
     setShowResults(false);
+    setShowFollowUp(false);
+    setRefinedScores([]);
     setError(null);
     setResultsTab('overall');
   }, [principles]);
+
+  // Handle follow-up completion
+  const handleFollowUpComplete = useCallback(async (answers: FollowUpAnswer[]) => {
+    if (!combinedAiScores) return;
+
+    setIsRefining(true);
+    setError(null);
+
+    // Build original scores for the refine API
+    const originalScores = lowScoringPrinciples.map((p) => ({
+      principleId: p.id,
+      title: p.title,
+      score: p.score,
+      reasoning: p.reasoning,
+    }));
+
+    try {
+      const response = await fetch('/api/refine-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ originalScores, answers }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to refine analysis');
+      }
+
+      const data = await response.json();
+      setRefinedScores(data.refinedScores || []);
+
+      // Update ratings with refined scores
+      const newRatings = { ...ratings };
+      for (const refined of data.refinedScores || []) {
+        newRatings[refined.principleId] = refined.refinedScore;
+      }
+      setRatings(newRatings);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to refine analysis');
+    } finally {
+      setIsRefining(false);
+      setShowFollowUp(false);
+    }
+  }, [combinedAiScores, lowScoringPrinciples, ratings]);
+
+  const handleFollowUpSkip = useCallback(() => {
+    setShowFollowUp(false);
+  }, []);
 
   const copyResults = () => {
     if (!results) return;
@@ -568,8 +657,34 @@ export default function AuditTool({ principles }: AuditToolProps) {
         </div>
       )}
 
+      {/* Follow-up Questions Phase */}
+      {mode === 'ai' && showFollowUp && lowScoringPrinciples.length > 0 && (
+        <div className="space-y-6">
+          {isRefining ? (
+            <div className="bg-white rounded-lg border border-slate-200 p-8 text-center">
+              <svg className="animate-spin h-8 w-8 mx-auto mb-4 text-slate-600" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              <p className="text-slate-600">Refining your results based on your answers...</p>
+            </div>
+          ) : (
+            <FollowUpQuestions
+              lowScoringPrinciples={lowScoringPrinciples}
+              onComplete={handleFollowUpComplete}
+              onSkip={handleFollowUpSkip}
+            />
+          )}
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              {error}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Progress */}
-      {(mode === 'manual' || sectionResults.length > 0) && (
+      {(mode === 'manual' || (sectionResults.length > 0 && !showFollowUp)) && (
         <div className="sticky top-0 z-10 bg-slate-50 py-4 border-b border-slate-200">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-slate-700">
@@ -608,7 +723,7 @@ export default function AuditTool({ principles }: AuditToolProps) {
         </div>
       )}
 
-      {showResults && results ? (
+      {showResults && results && !showFollowUp ? (
         /* Results Section */
         <div className="space-y-6">
           {/* Results Tabs (if section-based) */}
@@ -680,20 +795,53 @@ export default function AuditTool({ principles }: AuditToolProps) {
 
                 {/* Top Actions */}
                 <div className="bg-white rounded-lg p-4 border border-slate-200">
-                  <div className="text-sm font-medium text-slate-500 mb-2">Top Actions</div>
-                  <ol className="space-y-2">
-                    {keyTakeaways.topActions.map((action, i) => (
-                      <li key={action.id} className="flex items-start gap-2">
-                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-slate-900 text-white text-xs flex items-center justify-center">
-                          {i + 1}
-                        </span>
-                        <div>
-                          <span className="font-medium text-slate-900">{action.title}</span>
-                          <span className="text-slate-400 ml-1">({action.score}/5)</span>
-                          <p className="text-sm text-slate-600 mt-0.5">{action.recommendation}</p>
-                        </div>
-                      </li>
-                    ))}
+                  <div className="text-sm font-medium text-slate-500 mb-2">
+                    Top Actions
+                    {refinedScores.length > 0 && (
+                      <span className="ml-2 text-xs text-green-600">(refined based on your answers)</span>
+                    )}
+                  </div>
+                  <ol className="space-y-3">
+                    {keyTakeaways.topActions.map((action, i) => {
+                      const refined = refinedScores.find((r) => r.principleId === action.id);
+                      return (
+                        <li key={action.id} className="flex items-start gap-2">
+                          <span className="flex-shrink-0 w-5 h-5 rounded-full bg-slate-900 text-white text-xs flex items-center justify-center">
+                            {i + 1}
+                          </span>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-slate-900">{action.title}</span>
+                              {refined && refined.refinedScore !== refined.originalScore ? (
+                                <span className="text-sm">
+                                  <span className="text-slate-400 line-through">{refined.originalScore}/5</span>
+                                  <span className="text-green-600 ml-1">{refined.refinedScore}/5</span>
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">({action.score}/5)</span>
+                              )}
+                            </div>
+                            {refined ? (
+                              <>
+                                <p className="text-sm text-slate-600 mt-1">{refined.refinedReasoning}</p>
+                                {refined.specificActions.length > 0 && (
+                                  <ul className="mt-2 space-y-1">
+                                    {refined.specificActions.map((sa, idx) => (
+                                      <li key={idx} className="text-sm text-slate-700 flex items-start gap-1">
+                                        <span className="text-green-500">→</span>
+                                        {sa}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </>
+                            ) : (
+                              <p className="text-sm text-slate-600 mt-0.5">{action.recommendation}</p>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ol>
                 </div>
 
@@ -824,7 +972,7 @@ export default function AuditTool({ principles }: AuditToolProps) {
             )}
           </div>
         </div>
-      ) : (mode === 'manual' || sectionResults.length > 0) ? (
+      ) : (mode === 'manual' || (sectionResults.length > 0 && !showFollowUp)) ? (
         /* Rating Cards */
         <div className="space-y-4">
           {principles.map((principle) => {
@@ -888,7 +1036,7 @@ export default function AuditTool({ principles }: AuditToolProps) {
       ) : null}
 
       {/* Show Results Button at bottom when all completed */}
-      {allCompleted && !showResults && (mode === 'manual' || sectionResults.length > 0) && (
+      {allCompleted && !showResults && !showFollowUp && (mode === 'manual' || sectionResults.length > 0) && (
         <div className="text-center py-6">
           <button
             onClick={() => setShowResults(true)}
