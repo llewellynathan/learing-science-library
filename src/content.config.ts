@@ -18,6 +18,19 @@ const principles = defineCollection({
     keyResearchers: z.array(z.string()).optional(),
     summary: z.string(),
     essential: z.boolean().optional().default(false),
+    // Audience relevance - how critical is this principle for each audience type
+    audienceRelevance: z.object({
+      learningDesigners: z.enum(['critical', 'high', 'moderate', 'low']).optional(),
+      educators: z.enum(['critical', 'high', 'moderate', 'low']).optional(),
+      selfLearners: z.enum(['critical', 'high', 'moderate', 'low']).optional(),
+    }).optional(),
+    // Context relevance - how critical is this principle for each learning context
+    contextRelevance: z.object({
+      gameBasedLearning: z.enum(['critical', 'high', 'moderate', 'low']).optional(),
+      classroomInstruction: z.enum(['critical', 'high', 'moderate', 'low']).optional(),
+      elearning: z.enum(['critical', 'high', 'moderate', 'low']).optional(),
+      selfStudy: z.enum(['critical', 'high', 'moderate', 'low']).optional(),
+    }).optional(),
   }),
 });
 

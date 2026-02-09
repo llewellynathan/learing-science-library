@@ -5,6 +5,7 @@ import PrincipleCard from '../components/PrincipleCard.astro';
 import CategoryFilter from '../components/CategoryFilter.astro';
 import EssentialPrinciples from '../components/EssentialPrinciples.astro';
 import Search from '../components/react/Search';
+import RelevanceFilter from '../components/react/RelevanceFilter';
 
 const allPrinciples = await getCollection('principles');
 
@@ -34,6 +35,13 @@ const searchPrinciples = sortedPrinciples.map((p) => ({
   summary: p.data.summary,
   tags: p.data.tags,
 }));
+
+// Prepare relevance data for the filter component
+const relevanceData = sortedPrinciples.map((p) => ({
+  id: p.id,
+  audienceRelevance: p.data.audienceRelevance,
+  contextRelevance: p.data.contextRelevance,
+}));
 ---
 
 <BaseLayout title="Home">
@@ -44,13 +52,15 @@ const searchPrinciples = sortedPrinciples.map((p) => ({
     </p>
   </div>
 
+  <Search client:load principles={searchPrinciples} />
+
+  <RelevanceFilter client:load principles={relevanceData} />
+
   {essentialPrinciples.length > 0 && (
     <EssentialPrinciples principles={essentialPrinciples} />
   )}
 
   <h2 class="text-xl font-bold text-slate-900 mb-4">Browse All Principles</h2>
-
-  <Search client:load principles={searchPrinciples} />
 
   <CategoryFilter categories={categories} />
 

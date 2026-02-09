@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import Anthropic from '@anthropic-ai/sdk';
 import { auditData } from '../../data/auditPrompts';
+import { upfrontQuestions, type UpfrontContextAnswers } from '../../data/upfrontQuestions';
 
 export const prerender = false;
 
@@ -15,7 +16,45 @@ interface AnalysisResult {
   scores: Record<string, ScoreResult>;
 }
 
-function buildPrompt(sectionName?: string, sectionNotes?: string): string {
+function buildUpfrontContextSection(upfrontContext: UpfrontContextAnswers): string {
+  if (!upfrontContext || Object.keys(upfrontContext).length === 0) {
+    return '';
+  }
+
+  let section = `
+IMPORTANT CONTEXT ABOUT THE OVERALL LEARNING EXPERIENCE:
+The user has provided information about behaviors that cannot be assessed from screenshots alone. Use this context to inform your scoring of the relevant principles.
+
+`;
+
+  for (const [questionId, answer] of Object.entries(upfrontContext)) {
+    const question = upfrontQuestions.find((q) => q.id === questionId);
+    if (!question) continue;
+
+    const selectedOption = question.options.find((o) => o.value === answer.selectedOption);
+    if (selectedOption) {
+      section += `**${question.question}**
+User selected: "${selectedOption.label}"
+Scoring guidance: ${selectedOption.scoringHint}
+Affects principles: ${question.principleIds.join(', ')}
+`;
+      if (answer.freeText && answer.freeText.trim()) {
+        section += `Additional context: "${answer.freeText}"
+`;
+      }
+      section += `
+`;
+    }
+  }
+
+  section += `Use this context when scoring the affected principles. These principles may receive higher scores if the user's context indicates implementation beyond what's visible in screenshots.
+
+`;
+
+  return section;
+}
+
+function buildPrompt(sectionName?: string, sectionNotes?: string, upfrontContext?: UpfrontContextAnswers): string {
   let prompt = '';
 
   if (sectionName) {
@@ -24,12 +63,17 @@ function buildPrompt(sectionName?: string, sectionNotes?: string): string {
 This section is: "${sectionName}"
 `;
 
+    // Add upfront context if provided
+    if (upfrontContext && Object.keys(upfrontContext).length > 0) {
+      prompt += buildUpfrontContextSection(upfrontContext);
+    }
+
     if (sectionNotes) {
       prompt += `
-The user has provided additional context about behaviors not visible in the screenshots:
+The user has provided additional section-specific context:
 "${sectionNotes}"
 
-Consider BOTH the screenshots AND this context when scoring. The notes may describe dynamic behaviors like randomization, adaptive difficulty, spaced repetition timing, or personalization that cannot be seen in static images.
+Consider BOTH the screenshots AND this context when scoring.
 
 `;
     }
@@ -107,7 +151,7 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    const { images, sectionName, sectionNotes } = await request.json();
+    const { images, sectionName, sectionNotes, upfrontContext } = await request.json();
 
     if (!images || !Array.isArray(images) || images.length === 0) {
       return new Response(
@@ -144,7 +188,7 @@ export const POST: APIRoute = async ({ request }) => {
             ...imageContent,
             {
               type: 'text',
-              text: buildPrompt(sectionName, sectionNotes),
+              text: buildPrompt(sectionName, sectionNotes, upfrontContext),
             },
           ],
         },

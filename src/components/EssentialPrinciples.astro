@@ -30,7 +30,8 @@ const categoryColors: Record<string, string> = {
     {principles.map((principle) => (
       <a
         href={`/principles/${principle.id}`}
-        class="block bg-white rounded-lg border border-slate-200 p-4 hover:shadow-md hover:border-slate-300 hover:-translate-y-0.5 transition-all"
+        class="essential-principle-card block bg-white rounded-lg border border-slate-200 p-4 hover:shadow-md hover:border-slate-300 hover:-translate-y-0.5 transition-all"
+        data-principle-id={principle.id}
       >
         <span class={`inline-block px-2 py-0.5 rounded text-xs font-medium mb-2 ${categoryColors[principle.data.category]}`}>
           {principle.data.category}
