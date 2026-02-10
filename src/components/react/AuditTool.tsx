@@ -460,9 +460,13 @@ export default function AuditTool({ principles }: AuditToolProps) {
     setAnalyzingSection(null);
 
     // Check for low-scoring principles to trigger follow-up
-    const lowScoring = Object.entries(newRatings)
-      .filter(([, score]) => score !== null && score <= 3);
-    if (lowScoring.length > 0) {
+    // Only show follow-up if there are relevant questions for the section types
+    const lowScoringIds = Object.entries(newRatings)
+      .filter(([, score]) => score !== null && score <= 3)
+      .map(([id]) => id);
+    const sectionNames = sections.map((s) => s.name);
+    const relevantLowScoring = getRelevantFollowUpPrinciples(lowScoringIds, sectionNames);
+    if (relevantLowScoring.length > 0) {
       setShowFollowUp(true);
     }
   }, [sections, principles]);
