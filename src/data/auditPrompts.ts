@@ -1,3 +1,5 @@
+import { type SectionType } from './upfrontQuestions';
+
 export interface RubricLevel {
   label: string;
   description: string;
@@ -7,6 +9,8 @@ export interface AuditPromptData {
   prompt: string;
   recommendation: string;
   rubric: Record<number, RubricLevel>;
+  /** Which section types this principle applies to. If empty/undefined, applies to all. */
+  appliesTo: SectionType[];
 }
 
 export const auditData: Record<string, AuditPromptData> = {
@@ -20,6 +24,7 @@ export const auditData: Record<string, AuditPromptData> = {
       4: { label: 'Well implemented', description: 'Content is systematically spaced with intentional intervals between sessions.' },
       5: { label: 'Fully integrated', description: 'Adaptive spacing adjusts review timing based on learner performance and forgetting curves.' },
     },
+    appliesTo: ['review', 'overall'],
   },
   'retrieval-practice': {
     prompt: 'How often do learners actively recall information from memory?',
@@ -31,6 +36,7 @@ export const auditData: Record<string, AuditPromptData> = {
       4: { label: 'Well implemented', description: 'Regular opportunities to recall information with feedback on accuracy.' },
       5: { label: 'Fully integrated', description: 'Retrieval is the core learning mechanism, with varied formats and immediate feedback.' },
     },
+    appliesTo: ['post-quiz', 'quiz', 'practice', 'review', 'overall'],
   },
   'elaboration': {
     prompt: 'How well do you prompt learners to explain and connect new information?',
@@ -42,6 +48,7 @@ export const auditData: Record<string, AuditPromptData> = {
       4: { label: 'Well implemented', description: 'Regular prompts to explain "why" and "how," with explicit links to prior knowledge.' },
       5: { label: 'Fully integrated', description: 'Learners consistently generate explanations, make connections, and teach concepts to others.' },
     },
+    appliesTo: ['post-quiz', 'quiz', 'lesson', 'practice', 'overall'],
   },
   'interleaving': {
     prompt: 'How much do you mix different topics or problem types during practice?',
@@ -53,6 +60,7 @@ export const auditData: Record<string, AuditPromptData> = {
       4: { label: 'Well implemented', description: 'Practice regularly interleaves different topics or problem types within sessions.' },
       5: { label: 'Fully integrated', description: 'Systematic interleaving across all practice, requiring learners to discriminate between approaches.' },
     },
+    appliesTo: ['post-quiz', 'quiz', 'practice', 'review', 'overall'],
   },
   'desirable-difficulties': {
     prompt: 'Does your design include productive challenges that may slow initial learning but boost retention?',
@@ -64,6 +72,7 @@ export const auditData: Record<string, AuditPromptData> = {
       4: { label: 'Well implemented', description: 'Strategic challenges are built in (generation, variation, spacing) with learner support.' },
       5: { label: 'Fully integrated', description: 'Productive struggle is a design principle—difficulty is calibrated to maximize long-term learning.' },
     },
+    appliesTo: ['post-quiz', 'quiz', 'practice', 'overall'],
   },
   'deliberate-practice': {
     prompt: 'How well do you target specific weaknesses with focused practice and feedback?',
@@ -75,6 +84,7 @@ export const auditData: Record<string, AuditPromptData> = {
       4: { label: 'Well implemented', description: 'Practice focuses on specific skill gaps with immediate, actionable feedback.' },
       5: { label: 'Fully integrated', description: 'Continuous diagnosis of weaknesses with adaptive practice at the edge of ability.' },
     },
+    appliesTo: ['practice', 'overall'],
   },
   'cognitive-load-theory': {
     prompt: 'How well do you manage information presentation to avoid overwhelming working memory?',
@@ -86,6 +96,7 @@ export const auditData: Record<string, AuditPromptData> = {
       4: { label: 'Well implemented', description: 'Information is streamlined, integrated, and presented in digestible amounts.' },
       5: { label: 'Fully integrated', description: 'Load is carefully managed—worked examples, fading, and scaffolding matched to expertise.' },
     },
+    appliesTo: ['pre-quiz', 'post-quiz', 'quiz', 'lesson', 'practice', 'review', 'onboarding', 'overall'],
   },
   'chunking': {
     prompt: 'How well do you group complex information into meaningful, manageable pieces?',
@@ -97,6 +108,7 @@ export const auditData: Record<string, AuditPromptData> = {
       4: { label: 'Well implemented', description: 'Information is grouped into meaningful chunks with clear hierarchies and connections.' },
       5: { label: 'Fully integrated', description: 'Chunking leverages learner schemas—patterns and relationships are made explicit.' },
     },
+    appliesTo: ['lesson', 'onboarding', 'overall'],
   },
   'growth-mindset': {
     prompt: 'How well does your messaging emphasize that abilities develop through effort?',
@@ -108,6 +120,7 @@ export const auditData: Record<string, AuditPromptData> = {
       4: { label: 'Well implemented', description: 'Consistent messaging that effort and strategy lead to improvement; struggle is normalized.' },
       5: { label: 'Fully integrated', description: 'Growth mindset is embedded throughout—feedback, framing, and culture all reinforce it.' },
     },
+    appliesTo: ['pre-quiz', 'post-quiz', 'quiz', 'lesson', 'practice', 'onboarding', 'overall'],
   },
   'self-efficacy': {
     prompt: 'How well do you build learner confidence through achievable challenges and success?',
@@ -119,6 +132,7 @@ export const auditData: Record<string, AuditPromptData> = {
       4: { label: 'Well implemented', description: 'Tasks are sequenced for success; positive feedback and models build confidence.' },
       5: { label: 'Fully integrated', description: 'Mastery experiences are central—learners build genuine competence through graduated challenges.' },
     },
+    appliesTo: ['pre-quiz', 'post-quiz', 'quiz', 'lesson', 'practice', 'onboarding', 'overall'],
   },
   'metacognition': {
     prompt: 'How well do you prompt learners to reflect on and monitor their own learning?',
@@ -130,6 +144,7 @@ export const auditData: Record<string, AuditPromptData> = {
       4: { label: 'Well implemented', description: 'Regular prompts to plan, monitor, and evaluate learning with actionable feedback.' },
       5: { label: 'Fully integrated', description: 'Metacognition is taught explicitly—learners develop awareness of their learning processes.' },
     },
+    appliesTo: ['pre-quiz', 'post-quiz', 'quiz', 'lesson', 'practice', 'review', 'overall'],
   },
   'self-explanation': {
     prompt: 'How well do you encourage learners to explain material to themselves?',
@@ -141,6 +156,7 @@ export const auditData: Record<string, AuditPromptData> = {
       4: { label: 'Well implemented', description: 'Regular prompts to explain reasoning, with scaffolding for effective explanations.' },
       5: { label: 'Fully integrated', description: 'Self-explanation is a core activity—learners articulate understanding at each step.' },
     },
+    appliesTo: ['post-quiz', 'quiz', 'lesson', 'practice', 'overall'],
   },
   'transfer-of-learning': {
     prompt: 'How well do you help learners apply knowledge to new and varied contexts?',
@@ -152,5 +168,6 @@ export const auditData: Record<string, AuditPromptData> = {
       4: { label: 'Well implemented', description: 'Varied examples and contexts; underlying principles are highlighted for transfer.' },
       5: { label: 'Fully integrated', description: 'Transfer is designed in—learners practice applying knowledge across diverse situations.' },
     },
+    appliesTo: ['lesson', 'practice', 'overall'],
   },
 };

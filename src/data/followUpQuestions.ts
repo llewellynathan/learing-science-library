@@ -1,6 +1,9 @@
+import { type SectionType, getSectionTypes } from './upfrontQuestions';
+
 export interface FollowUpQuestionData {
   options: string[];
   freeTextPrompt: string;
+  appliesTo: SectionType[];
 }
 
 export const followUpQuestions: Record<string, FollowUpQuestionData> = {
@@ -13,6 +16,7 @@ export const followUpQuestions: Record<string, FollowUpQuestionData> = {
       'Review intervals are based on how well users remembered content',
     ],
     freeTextPrompt: 'Describe any spaced learning or review features not visible in the screenshots:',
+    appliesTo: ['review', 'overall'],
   },
   'retrieval-practice': {
     options: [
@@ -23,6 +27,7 @@ export const followUpQuestions: Record<string, FollowUpQuestionData> = {
       'Practice questions require applying knowledge, not just recognition',
     ],
     freeTextPrompt: 'Describe any recall-based or retrieval activities:',
+    appliesTo: ['quiz', 'pre-quiz', 'post-quiz', 'practice', 'review'],
   },
   'elaboration': {
     options: [
@@ -33,6 +38,7 @@ export const followUpQuestions: Record<string, FollowUpQuestionData> = {
       'Users teach or explain concepts to others (peers, AI, etc.)',
     ],
     freeTextPrompt: 'Describe how learners are encouraged to explain or elaborate on content:',
+    appliesTo: ['quiz', 'pre-quiz', 'post-quiz', 'lesson', 'practice'],
   },
   'interleaving': {
     options: [
@@ -43,6 +49,7 @@ export const followUpQuestions: Record<string, FollowUpQuestionData> = {
       'Practice requires choosing which strategy or approach to use',
     ],
     freeTextPrompt: 'Describe how different topics or skills are mixed in practice:',
+    appliesTo: ['quiz', 'post-quiz', 'practice', 'review'],  // Not pre-quiz (can't interleave unlearned content)
   },
   'desirable-difficulties': {
     options: [
@@ -53,6 +60,7 @@ export const followUpQuestions: Record<string, FollowUpQuestionData> = {
       'Learners work through difficulties before receiving help',
     ],
     freeTextPrompt: 'Describe any intentional challenges designed to improve long-term learning:',
+    appliesTo: ['quiz', 'post-quiz', 'practice'],  // Not pre-quiz (diagnostic, not about productive struggle)
   },
   'deliberate-practice': {
     options: [
@@ -63,6 +71,7 @@ export const followUpQuestions: Record<string, FollowUpQuestionData> = {
       'Learners can target specific skills they want to improve',
     ],
     freeTextPrompt: 'Describe how practice targets individual weaknesses:',
+    appliesTo: ['practice'],
   },
   'cognitive-load-theory': {
     options: [
@@ -73,6 +82,7 @@ export const followUpQuestions: Record<string, FollowUpQuestionData> = {
       'Learners can control the pace of information delivery',
     ],
     freeTextPrompt: 'Describe how you manage complexity for learners:',
+    appliesTo: ['quiz', 'pre-quiz', 'post-quiz', 'lesson', 'practice', 'onboarding'],
   },
   'chunking': {
     options: [
@@ -83,6 +93,7 @@ export const followUpQuestions: Record<string, FollowUpQuestionData> = {
       'Summaries or overviews help learners see how pieces connect',
     ],
     freeTextPrompt: 'Describe how content is organized and grouped:',
+    appliesTo: ['lesson', 'onboarding'],
   },
   'growth-mindset': {
     options: [
@@ -93,6 +104,7 @@ export const followUpQuestions: Record<string, FollowUpQuestionData> = {
       'Language avoids fixed-ability labels (smart, talented, etc.)',
     ],
     freeTextPrompt: 'Describe messaging or feedback that promotes a growth mindset:',
+    appliesTo: ['quiz', 'pre-quiz', 'post-quiz', 'lesson', 'practice', 'onboarding'],
   },
   'self-efficacy': {
     options: [
@@ -103,6 +115,7 @@ export const followUpQuestions: Record<string, FollowUpQuestionData> = {
       'There are clear indicators of progress and improvement',
     ],
     freeTextPrompt: 'Describe how you build learner confidence:',
+    appliesTo: ['quiz', 'pre-quiz', 'post-quiz', 'lesson', 'practice', 'onboarding'],
   },
   'metacognition': {
     options: [
@@ -113,6 +126,7 @@ export const followUpQuestions: Record<string, FollowUpQuestionData> = {
       'Prompts help learners identify what they know vs. don\'t know',
     ],
     freeTextPrompt: 'Describe how learners monitor or reflect on their own learning:',
+    appliesTo: ['quiz', 'pre-quiz', 'post-quiz', 'lesson', 'practice', 'review'],
   },
   'self-explanation': {
     options: [
@@ -123,6 +137,7 @@ export const followUpQuestions: Record<string, FollowUpQuestionData> = {
       'Learners compare their reasoning to expert explanations',
     ],
     freeTextPrompt: 'Describe how learners explain content to themselves:',
+    appliesTo: ['quiz', 'pre-quiz', 'post-quiz', 'lesson', 'practice'],
   },
   'transfer-of-learning': {
     options: [
@@ -133,5 +148,27 @@ export const followUpQuestions: Record<string, FollowUpQuestionData> = {
       'Connections to other domains or applications are highlighted',
     ],
     freeTextPrompt: 'Describe how learners apply knowledge to new contexts:',
+    appliesTo: ['lesson', 'practice', 'overall'],
   },
 };
+
+/**
+ * Filter follow-up principles to only those relevant for the given section types
+ */
+export function getRelevantFollowUpPrinciples(
+  principleIds: string[],
+  sectionNames: string[]
+): string[] {
+  const types = getSectionTypes(sectionNames);
+  const includeOverall = types.length > 1;
+
+  return principleIds.filter((id) => {
+    const questionData = followUpQuestions[id];
+    if (!questionData) return false;
+
+    const matchesSectionType = questionData.appliesTo.some((t) => types.includes(t));
+    const isOverallQuestion = questionData.appliesTo.includes('overall');
+
+    return matchesSectionType || (includeOverall && isOverallQuestion);
+  });
+}

@@ -3,8 +3,16 @@ import RatingScale from './RatingScale';
 import ImageUpload from './ImageUpload';
 import FollowUpQuestions, { type FollowUpAnswer } from './FollowUpQuestions';
 import UpfrontContextModal from './UpfrontContextModal';
+import NavigationMode from './NavigationMode';
 import { auditData } from '../../data/auditPrompts';
-import { type UpfrontContextAnswers } from '../../data/upfrontQuestions';
+import {
+  type UpfrontContextAnswers,
+  type SectionType,
+  detectSectionType,
+  SECTION_TYPE_OPTIONS,
+} from '../../data/upfrontQuestions';
+import { getRelevantFollowUpPrinciples } from '../../data/followUpQuestions';
+import type { NavigationSession, CapturedMoment, LearningContentType } from '../../types/navigation';
 
 type Category =
   | 'Memory & Retention'
@@ -35,6 +43,7 @@ interface Section {
   name: string;
   images: ImageFile[];
   notes: string;
+  typeOverride?: SectionType;
 }
 
 interface AIScore {
@@ -83,8 +92,35 @@ const SECTION_PRESETS = [
   'Assessment',
 ];
 
+// Helper function to convert base64 image data to File object
+function base64ToFile(base64: string, mediaType: string, filename: string): File {
+  const byteString = atob(base64);
+  const ab = new ArrayBuffer(byteString.length);
+  const ia = new Uint8Array(ab);
+  for (let i = 0; i < byteString.length; i++) {
+    ia[i] = byteString.charCodeAt(i);
+  }
+  const blob = new Blob([ab], { type: mediaType });
+  return new File([blob], filename, { type: mediaType });
+}
+
+// Helper function to detect section type from captured content types
+function detectSectionTypeFromCaptures(captures: CapturedMoment[]): SectionType | undefined {
+  const types = captures.map((c) => c.contentType);
+  if (types.some((t) => ['quiz_question', 'quiz_feedback', 'assessment_result'].includes(t))) {
+    return 'assessment';
+  }
+  if (types.some((t) => ['lesson_content', 'onboarding_step'].includes(t))) {
+    return 'instruction';
+  }
+  if (types.some((t) => ['practice_exercise'].includes(t))) {
+    return 'practice';
+  }
+  return undefined;
+}
+
 export default function AuditTool({ principles }: AuditToolProps) {
-  const [mode, setMode] = useState<'manual' | 'ai'>('manual');
+  const [mode, setMode] = useState<'manual' | 'ai' | 'navigation'>('manual');
   const [ratings, setRatings] = useState<Record<string, number | null>>(() =>
     Object.fromEntries(principles.map((p) => [p.id, null]))
   );
@@ -141,13 +177,22 @@ export default function AuditTool({ principles }: AuditToolProps) {
     return combined;
   }, [sectionResults, principles]);
 
-  // Identify low-scoring principles for follow-up
+  // Identify low-scoring principles for follow-up (filtered by section relevance)
   const lowScoringPrinciples = useMemo(() => {
     if (!combinedAiScores) return [];
 
-    return Object.entries(combinedAiScores)
+    // Get all low-scoring principle IDs
+    const allLowScoring = Object.entries(combinedAiScores)
       .filter(([, score]) => score.score <= 3 && !score.notApplicable)
-      .map(([id, score]) => {
+      .map(([id]) => id);
+
+    // Filter to only principles relevant for the analyzed section types
+    const sectionNames = sections.map((s) => s.name);
+    const relevantIds = getRelevantFollowUpPrinciples(allLowScoring, sectionNames);
+
+    return relevantIds
+      .map((id) => {
+        const score = combinedAiScores[id];
         const principle = principles.find((p) => p.id === id)!;
         return {
           id,
@@ -157,7 +202,7 @@ export default function AuditTool({ principles }: AuditToolProps) {
         };
       })
       .sort((a, b) => a.score - b.score);
-  }, [combinedAiScores, principles]);
+  }, [combinedAiScores, principles, sections]);
 
   const results = useMemo(() => {
     const rated = Object.entries(ratings).filter(([, score]) => score !== null);
@@ -325,6 +370,12 @@ export default function AuditTool({ principles }: AuditToolProps) {
     );
   }, []);
 
+  const updateSectionType = useCallback((sectionId: string, typeOverride?: SectionType) => {
+    setSections((prev) =>
+      prev.map((s) => (s.id === sectionId ? { ...s, typeOverride } : s))
+    );
+  }, []);
+
   // Show upfront context modal before analysis
   const analyzeSections = useCallback(() => {
     const sectionsWithImages = sections.filter((s) => s.images.length > 0);
@@ -364,6 +415,7 @@ export default function AuditTool({ principles }: AuditToolProps) {
           body: JSON.stringify({
             images: imageData,
             sectionName: section.name,
+            sectionType: section.typeOverride,
             sectionNotes: section.notes || undefined,
             upfrontContext: Object.keys(context).length > 0 ? context : undefined,
           }),
@@ -612,7 +664,7 @@ export default function AuditTool({ principles }: AuditToolProps) {
       )}
 
       {/* Mode Toggle */}
-      <div className="flex gap-2 p-1 bg-slate-100 rounded-lg w-fit">
+      <div className="flex gap-2 p-1 bg-slate-100 rounded-lg w-fit flex-wrap">
         <button
           onClick={() => { setMode('manual'); resetAudit(); }}
           className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -633,7 +685,100 @@ export default function AuditTool({ principles }: AuditToolProps) {
         >
           AI-Assisted Audit
         </button>
+        <button
+          onClick={() => { setMode('navigation'); resetAudit(); }}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            mode === 'navigation'
+              ? 'bg-white text-slate-900 shadow-sm'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          Live Navigation
+          <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">Beta</span>
+        </button>
       </div>
+
+      {/* Navigation Mode */}
+      {mode === 'navigation' && sectionResults.length === 0 && (
+        <NavigationMode
+          onComplete={(session: NavigationSession) => {
+            console.log('Navigation session completed:', session);
+
+            if (session.captures.length > 0) {
+              // Try to group captures by session flow IDs first
+              const flowGroups = session.flows.reduce((acc, flow) => {
+                acc[flow.id] = session.captures.filter((c) => c.flowId === flow.id);
+                return acc;
+              }, {} as Record<string, CapturedMoment[]>);
+
+              // Check if any captures matched session flows
+              const hasMatchingFlows = session.flows.some(
+                (flow) => flowGroups[flow.id]?.length > 0
+              );
+
+              let newSections;
+
+              if (hasMatchingFlows) {
+                // Create sections from flows with captures
+                newSections = session.flows
+                  .filter((flow) => flowGroups[flow.id]?.length > 0)
+                  .map((flow) => {
+                    const captures = flowGroups[flow.id];
+                    return {
+                      id: flow.id,
+                      name: flow.description,
+                      images: captures.map((capture, idx) => ({
+                        file: base64ToFile(
+                          capture.image,
+                          capture.mediaType,
+                          `${flow.id}-capture-${idx}.png`
+                        ),
+                        preview: `data:${capture.mediaType};base64,${capture.image}`,
+                      })),
+                      notes: captures
+                        .map((c) => c.description)
+                        .filter(Boolean)
+                        .join('\n'),
+                      typeOverride: detectSectionTypeFromCaptures(captures),
+                    };
+                  });
+              } else {
+                // Fallback: group captures by their own flowIds (for imported JSON)
+                const captureFlowIds = [...new Set(session.captures.map((c) => c.flowId))];
+                newSections = captureFlowIds.map((flowId, idx) => {
+                  const captures = session.captures.filter((c) => c.flowId === flowId);
+                  // Use flow description if available, otherwise generate from captures
+                  const flowName =
+                    session.flows[idx]?.description ||
+                    `Captured Flow ${idx + 1}`;
+                  return {
+                    id: flowId,
+                    name: flowName,
+                    images: captures.map((capture, captureIdx) => ({
+                      file: base64ToFile(
+                        capture.image,
+                        capture.mediaType,
+                        `${flowId}-capture-${captureIdx}.png`
+                      ),
+                      preview: `data:${capture.mediaType};base64,${capture.image}`,
+                    })),
+                    notes: captures
+                      .map((c) => c.description)
+                      .filter(Boolean)
+                      .join('\n'),
+                    typeOverride: detectSectionTypeFromCaptures(captures),
+                  };
+                });
+              }
+
+              setSections(newSections);
+              // Switch to AI mode to show the sections ready for analysis
+              setMode('ai');
+            }
+          }}
+          onCancel={() => setMode('ai')}
+        />
+      )}
 
       {/* AI Mode: Section-based Upload */}
       {mode === 'ai' && sectionResults.length === 0 && (
@@ -653,7 +798,7 @@ export default function AuditTool({ principles }: AuditToolProps) {
                     key={section.id}
                     className="border border-slate-200 rounded-lg p-4"
                   >
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center justify-between mb-2">
                       <h4 className="font-medium text-slate-900">{section.name}</h4>
                       <button
                         onClick={() => removeSection(section.id)}
@@ -664,6 +809,26 @@ export default function AuditTool({ principles }: AuditToolProps) {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                       </button>
+                    </div>
+                    {/* Section Type Detection + Override */}
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-xs text-slate-500">
+                        Type: {section.typeOverride
+                          ? SECTION_TYPE_OPTIONS.find((o) => o.value === section.typeOverride)?.label
+                          : `${detectSectionType(section.name)} (auto-detected)`
+                        }
+                      </span>
+                      <select
+                        value={section.typeOverride || ''}
+                        onChange={(e) => updateSectionType(section.id, (e.target.value as SectionType) || undefined)}
+                        className="text-xs border border-slate-200 rounded px-1 py-0.5"
+                        disabled={isAnalyzing}
+                      >
+                        <option value="">Auto-detect</option>
+                        {SECTION_TYPE_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
                     </div>
                     <ImageUpload
                       images={section.images}
