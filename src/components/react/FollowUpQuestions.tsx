@@ -130,12 +130,7 @@ export default function FollowUpQuestions({
       <div className="bg-white rounded-lg border border-slate-200 p-6">
         {/* Principle Header */}
         <div className="mb-4">
-          <div className="flex items-center gap-2 mb-1">
-            <h4 className="font-semibold text-slate-900">{currentPrinciple.title}</h4>
-            <span className="px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-800">
-              {currentPrinciple.score}/5
-            </span>
-          </div>
+          <h4 className="font-semibold text-slate-900">{currentPrinciple.title}</h4>
         </div>
 
         {/* AI Reasoning */}

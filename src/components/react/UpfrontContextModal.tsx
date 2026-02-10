@@ -14,6 +14,8 @@ interface UpfrontContextModalProps {
 
 const sectionTypeLabels: Record<SectionType, string> = {
   quiz: 'Quiz / Assessment',
+  'pre-quiz': 'Pre-Lesson Quiz',
+  'post-quiz': 'Post-Lesson Quiz',
   lesson: 'Lesson / Instruction',
   practice: 'Practice / Activity',
   review: 'Review / Summary',

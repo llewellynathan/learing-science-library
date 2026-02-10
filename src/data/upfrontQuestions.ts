@@ -1,4 +1,14 @@
-export type SectionType = 'quiz' | 'lesson' | 'practice' | 'review' | 'onboarding' | 'overall';
+export type SectionType = 'quiz' | 'pre-quiz' | 'post-quiz' | 'lesson' | 'practice' | 'review' | 'onboarding' | 'overall';
+
+export const SECTION_TYPE_OPTIONS: { value: SectionType; label: string }[] = [
+  { value: 'pre-quiz', label: 'Pre-Quiz / Diagnostic' },
+  { value: 'post-quiz', label: 'Post-Quiz / Assessment' },
+  { value: 'quiz', label: 'Quiz / Test' },
+  { value: 'lesson', label: 'Lesson / Instruction' },
+  { value: 'practice', label: 'Practice / Activity' },
+  { value: 'review', label: 'Review / Summary' },
+  { value: 'onboarding', label: 'Onboarding / Intro' },
+];
 
 export interface UpfrontQuestionOption {
   value: string;
@@ -29,7 +39,17 @@ export interface UpfrontContextAnswers {
 export function detectSectionType(sectionName: string): SectionType {
   const name = sectionName.toLowerCase();
 
-  // Quiz/Assessment patterns
+  // Pre-quiz patterns (check BEFORE generic quiz)
+  if (/pre[- ]?(lesson|quiz|test|assessment)|diagnostic|baseline|placement/.test(name)) {
+    return 'pre-quiz';
+  }
+
+  // Post-quiz patterns (check BEFORE generic quiz)
+  if (/post[- ]?(lesson|quiz|test|assessment)|final|summative/.test(name)) {
+    return 'post-quiz';
+  }
+
+  // Generic Quiz/Assessment patterns
   if (/quiz|test|assessment|exam|check|question/.test(name)) {
     return 'quiz';
   }
@@ -89,6 +109,24 @@ export function getRelevantQuestions(sectionNames: string[]): UpfrontQuestion[] 
   });
 }
 
+/**
+ * Get applicable principle IDs for a given section type
+ * Used by analyze.ts to filter which principles to include in the AI prompt
+ */
+export function getApplicablePrincipleIds(
+  sectionType: SectionType,
+  allPrincipleIds: string[],
+  principleAppliesTo: Record<string, SectionType[]>
+): string[] {
+  return allPrincipleIds.filter((id) => {
+    const appliesTo = principleAppliesTo[id];
+    // If no appliesTo defined, apply to all (fallback)
+    if (!appliesTo || appliesTo.length === 0) return true;
+    // Check if principle applies to this section type
+    return appliesTo.includes(sectionType);
+  });
+}
+
 export const upfrontQuestions: UpfrontQuestion[] = [
   // === OVERALL / MULTI-SECTION QUESTIONS ===
   {
@@ -131,7 +169,7 @@ export const upfrontQuestions: UpfrontQuestion[] = [
     id: 'quiz-feedback',
     principleIds: ['retrieval-practice', 'elaboration'],
     question: 'What kind of feedback do learners receive on quiz questions?',
-    appliesTo: ['quiz'],
+    appliesTo: ['quiz', 'pre-quiz', 'post-quiz'],
     options: [
       {
         value: 'none',
@@ -165,7 +203,7 @@ export const upfrontQuestions: UpfrontQuestion[] = [
     id: 'quiz-randomization',
     principleIds: ['interleaving', 'desirable-difficulties'],
     question: 'How are questions presented in this quiz?',
-    appliesTo: ['quiz'],
+    appliesTo: ['quiz', 'post-quiz'],  // Not pre-quiz (can't interleave topics not yet taught)
     options: [
       {
         value: 'fixed',

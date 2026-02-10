@@ -1,7 +1,13 @@
 import type { APIRoute } from 'astro';
 import Anthropic from '@anthropic-ai/sdk';
 import { auditData } from '../../data/auditPrompts';
-import { upfrontQuestions, type UpfrontContextAnswers } from '../../data/upfrontQuestions';
+import {
+  upfrontQuestions,
+  detectSectionType,
+  getApplicablePrincipleIds,
+  type UpfrontContextAnswers,
+  type SectionType,
+} from '../../data/upfrontQuestions';
 
 export const prerender = false;
 
@@ -54,13 +60,32 @@ Affects principles: ${question.principleIds.join(', ')}
   return section;
 }
 
-function buildPrompt(sectionName?: string, sectionNotes?: string, upfrontContext?: UpfrontContextAnswers): string {
+function buildPrompt(
+  sectionName?: string,
+  resolvedSectionType?: SectionType,
+  sectionNotes?: string,
+  upfrontContext?: UpfrontContextAnswers
+): string {
   let prompt = '';
+
+  // Use resolved section type (override or detected)
+  const sectionType: SectionType = resolvedSectionType || 'overall';
+  const allPrincipleIds = Object.keys(auditData);
+
+  // Build mapping of principle ID to appliesTo array
+  const principleAppliesTo: Record<string, SectionType[]> = {};
+  for (const [id, data] of Object.entries(auditData)) {
+    principleAppliesTo[id] = data.appliesTo;
+  }
+
+  // Get only applicable principles for this section type
+  const applicablePrincipleIds = getApplicablePrincipleIds(sectionType, allPrincipleIds, principleAppliesTo);
+  const applicablePrinciples = applicablePrincipleIds.map((id) => [id, auditData[id]] as const);
 
   if (sectionName) {
     prompt = `You are an expert in learning science and instructional design. You are analyzing screenshots from ONE SECTION of a larger learning experience.
 
-This section is: "${sectionName}"
+This section is: "${sectionName}" (detected type: ${sectionType})
 `;
 
     // Add upfront context if provided
@@ -79,18 +104,13 @@ Consider BOTH the screenshots AND this context when scoring.
     }
 
     prompt += `
-For each of the 13 learning science principles below:
-1. If the principle IS relevant to this type of section:
-   - Provide a score from 1-5 based on the rubric criteria
-   - Provide brief reasoning (1-2 sentences) explaining your score
-   - Provide confidence level: "high", "medium", or "low"
-   - Set "notApplicable" to false
+For each of the ${applicablePrinciples.length} learning science principles below (pre-filtered to be relevant for "${sectionType}" sections):
+1. Provide a score from 1-5 based on the rubric criteria
+2. Provide brief reasoning (1-2 sentences) explaining your score
+3. Provide confidence level: "high", "medium", or "low"
+4. Set "notApplicable" to false (these principles were pre-selected as applicable)
 
-2. If the principle is NOT relevant or cannot be assessed for this section type:
-   - Set "notApplicable" to true
-   - Set score to 0
-   - Explain briefly why it doesn't apply to this section
-   - For example: Spaced repetition timing can't be assessed from a single lesson section
+Note: Principles not applicable to this section type have already been filtered out.
 
 `;
   } else {
@@ -106,11 +126,11 @@ IMPORTANT: Some principles (like spaced repetition timing or long-term transfer)
 `;
   }
 
-  prompt += `Here are the 13 principles with their scoring rubrics:
+  prompt += `Here are the ${applicablePrinciples.length} principles with their scoring rubrics:
 
 `;
 
-  for (const [id, data] of Object.entries(auditData)) {
+  for (const [id, data] of applicablePrinciples) {
     prompt += `## ${id}\n`;
     prompt += `Question: ${data.prompt}\n`;
     prompt += `Rubric:\n`;
@@ -126,10 +146,10 @@ Respond in valid JSON format only, with no additional text:
 {
   "scores": {
     "principle-id": {
-      "score": <1-5 or 0 if not applicable>,
+      "score": <1-5>,
       "reasoning": "<brief explanation>",
       "confidence": "<high|medium|low>",
-      "notApplicable": <true|false>
+      "notApplicable": false
     },
     ...
   }
@@ -151,7 +171,7 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    const { images, sectionName, sectionNotes, upfrontContext } = await request.json();
+    const { images, sectionName, sectionType, sectionNotes, upfrontContext } = await request.json();
 
     if (!images || !Array.isArray(images) || images.length === 0) {
       return new Response(
@@ -168,6 +188,9 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     const client = new Anthropic({ apiKey });
+
+    // Use override if provided, otherwise detect from name
+    const resolvedSectionType: SectionType = sectionType || (sectionName ? detectSectionType(sectionName) : 'overall');
 
     const imageContent: Anthropic.ImageBlockParam[] = images.map((img: { data: string; mediaType: string }) => ({
       type: 'image' as const,
@@ -188,7 +211,7 @@ export const POST: APIRoute = async ({ request }) => {
             ...imageContent,
             {
               type: 'text',
-              text: buildPrompt(sectionName, sectionNotes, upfrontContext),
+              text: buildPrompt(sectionName, resolvedSectionType, sectionNotes, upfrontContext),
             },
           ],
         },
@@ -207,6 +230,27 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     const result: AnalysisResult = JSON.parse(jsonMatch[0]);
+
+    // Add non-applicable principles to the response
+    // so the UI can display them properly
+    const allPrincipleIds = Object.keys(auditData);
+    const principleAppliesTo: Record<string, SectionType[]> = {};
+    for (const [id, data] of Object.entries(auditData)) {
+      principleAppliesTo[id] = data.appliesTo;
+    }
+    const applicablePrincipleIds = getApplicablePrincipleIds(resolvedSectionType, allPrincipleIds, principleAppliesTo);
+
+    // Mark non-applicable principles
+    for (const principleId of allPrincipleIds) {
+      if (!applicablePrincipleIds.includes(principleId)) {
+        result.scores[principleId] = {
+          score: 0,
+          reasoning: `Not applicable to ${resolvedSectionType} sections`,
+          confidence: 'high',
+          notApplicable: true,
+        };
+      }
+    }
 
     return new Response(JSON.stringify(result), {
       status: 200,
