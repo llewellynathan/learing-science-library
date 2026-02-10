@@ -1310,6 +1310,11 @@ export default function AuditTool({ principles }: AuditToolProps) {
                 <div className="text-sm text-green-700 font-mono break-all">{sharedUrl}</div>
               </div>
             )}
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                {error}
+              </div>
+            )}
           </div>
         </div>
       ) : (mode === 'manual' || (sectionResults.length > 0 && !showFollowUp)) ? (
