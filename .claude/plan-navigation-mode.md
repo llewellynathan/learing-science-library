@@ -4,6 +4,9 @@
 
 **Last Updated:** 2026-02-10
 
+**Recent Updates:**
+- Added Learner Persona System for capturing varied learning paths (correct/incorrect answers, quiz failures)
+
 **PRs Merged:**
 - PR #8: feat: add live navigation mode and section-type filtering
 - PR #9: fix: use valid SectionType values in navigation mode
@@ -88,6 +91,43 @@ Claude Code will use MCP Playwright tools to:
 
 ---
 
+## Learner Persona System
+
+The persona system allows you to capture varied learning paths, including incorrect answers and quiz failures. This ensures the analysis includes what learners experience when they struggle, not just when they succeed.
+
+### Available Personas
+
+| Persona | Incorrect Rate | Behavior |
+|---------|----------------|----------|
+| **Struggling Learner** | ~70% | Answers incorrectly often, experiences failure paths, retries quizzes |
+| **Developing Learner** | ~40% | Mixed performance, realistic learner behavior |
+| **Proficient Learner** | ~15% | Usually correct, experiences success paths |
+| **Path Explorer** (default) | 50% | Alternates correct/incorrect to capture both feedback types |
+| **Natural** | ~10% | Claude's default behavior when answering |
+
+### Setting Personas
+
+1. **Session-level default:** Select a default persona before starting navigation
+2. **Per-flow override:** Each flow can use a different persona (dropdown next to each flow)
+
+### Persona Behavior Examples
+
+**Struggling Learner navigating a quiz:**
+1. Captures quiz question screenshot
+2. Deliberately selects a plausibly wrong answer
+3. Captures incorrect feedback screen
+4. If retry available, retries and answers correctly
+5. Captures success feedback on second attempt
+6. Result: Both failure and success paths captured
+
+**Path Explorer navigating multiple questions:**
+1. Question 1: Answer incorrectly → capture incorrect feedback
+2. Question 2: Answer correctly → capture correct feedback
+3. Question 3: Answer incorrectly → capture incorrect feedback
+4. Result: Systematic coverage of both feedback types
+
+---
+
 ## Navigation Agent Commands (For Claude Code)
 
 When navigating, use these MCP Playwright tools:
@@ -111,18 +151,26 @@ Return captures as JSON:
       "id": "uuid",
       "image": "base64-encoded-png",
       "mediaType": "image/png",
-      "contentType": "quiz_question",
-      "description": "Multiple choice question about...",
+      "contentType": "quiz_feedback",
+      "description": "Incorrect answer feedback - shows explanation of why the answer was wrong",
       "url": "https://...",
-      "pageTitle": "Page Title",
+      "pageTitle": "Quiz Question 1",
       "flowId": "flow-1",
       "timestamp": 1234567890,
       "trigger": "key_moment",
-      "sequenceNumber": 1
+      "sequenceNumber": 1,
+      "wasCorrect": false,
+      "attemptNumber": 1,
+      "activePersona": "struggling"
     }
   ]
 }
 ```
+
+**Persona-specific fields (for quiz feedback captures):**
+- `wasCorrect`: Whether the answer was correct (true/false)
+- `attemptNumber`: Which attempt at this question/quiz (1, 2, etc.)
+- `activePersona`: The persona used during this capture
 
 ---
 
@@ -132,21 +180,25 @@ Return captures as JSON:
 
 ```typescript
 // Key types defined:
-NavigationSession     // Complete session with flows, captures, interactions
-NavigationFlow        // A flow to navigate (id, description, status)
-CapturedMoment        // Screenshot with metadata (trigger, contentType, etc.)
+NavigationSession     // Complete session with flows, captures, interactions, defaultPersona
+NavigationFlow        // A flow to navigate (id, description, status, persona)
+CapturedMoment        // Screenshot with metadata (trigger, contentType, wasCorrect, attemptNumber, activePersona)
 Interaction           // Recorded user action (click, type, etc.)
 NavigationConfig      // Session configuration (timeouts, viewport)
+LearnerPersona        // Type union: 'struggling' | 'developing' | 'proficient' | 'mixed' | 'natural'
+LearnerPersonaConfig  // Configuration for a persona (label, description, incorrectRate, retryOnFail)
+LEARNER_PERSONAS      // Array of all persona configurations
 ```
 
 ### Prompts (`src/data/navigationPrompts.ts`)
 
 ```typescript
 // Key exports:
-NAVIGATION_SYSTEM_PROMPT  // System prompt for navigation agent
+NAVIGATION_SYSTEM_PROMPT  // System prompt for navigation agent (includes persona behavior)
 PAGE_ANALYSIS_PROMPT      // Template for analyzing current page
 KEY_MOMENT_PATTERNS       // Patterns for detecting learning content
 CONTENT_TYPE_LABELS       // Human-readable labels for content types
+PERSONA_PROMPTS           // Per-persona instruction snippets
 ```
 
 ### UI Component (`src/components/react/NavigationMode.tsx`)

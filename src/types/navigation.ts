@@ -4,6 +4,62 @@
  * key moments for learning science principle analysis.
  */
 
+/** Learner persona that guides how questions are answered during navigation */
+export type LearnerPersona =
+  | 'struggling'   // Answers incorrectly ~70% of the time, experiences failure paths
+  | 'developing'   // Answers incorrectly ~40% of the time, mixed performance
+  | 'proficient'   // Answers correctly ~85% of the time
+  | 'mixed'        // Deliberately alternates correct/incorrect to capture both paths
+  | 'natural';     // Claude's natural behavior (current default)
+
+/** Configuration for a learner persona */
+export interface LearnerPersonaConfig {
+  persona: LearnerPersona;
+  label: string;
+  description: string;
+  incorrectRate: number; // 0-100, approximate probability of answering incorrectly
+  retryOnFail: boolean;  // Whether to retry failed quizzes when possible
+}
+
+/** Available learner personas with their configurations */
+export const LEARNER_PERSONAS: LearnerPersonaConfig[] = [
+  {
+    persona: 'struggling',
+    label: 'Struggling Learner',
+    description: 'Answers incorrectly often, experiences failure paths and retries',
+    incorrectRate: 70,
+    retryOnFail: true,
+  },
+  {
+    persona: 'developing',
+    label: 'Developing Learner',
+    description: 'Mixed performance with both correct and incorrect answers',
+    incorrectRate: 40,
+    retryOnFail: false,
+  },
+  {
+    persona: 'proficient',
+    label: 'Proficient Learner',
+    description: 'Usually answers correctly, experiences success paths',
+    incorrectRate: 15,
+    retryOnFail: false,
+  },
+  {
+    persona: 'mixed',
+    label: 'Path Explorer',
+    description: 'Alternates to capture both correct and incorrect feedback',
+    incorrectRate: 50,
+    retryOnFail: true,
+  },
+  {
+    persona: 'natural',
+    label: 'Natural',
+    description: "Claude's default behavior when answering questions",
+    incorrectRate: 10,
+    retryOnFail: false,
+  },
+];
+
 /** Represents a flow to navigate through the learning experience */
 export interface NavigationFlow {
   id: string;
@@ -13,6 +69,8 @@ export interface NavigationFlow {
   status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'skipped';
   /** Optional notes added by user or agent */
   notes?: string;
+  /** Learner persona to use for this flow (overrides session default) */
+  persona?: LearnerPersona;
 }
 
 /** Types of triggers for capturing a screenshot */
@@ -63,6 +121,12 @@ export interface CapturedMoment {
   flowId: string;
   /** Sequence number within the flow */
   sequenceNumber: number;
+  /** For quiz_feedback captures: was the answer correct? */
+  wasCorrect?: boolean;
+  /** For quiz_feedback captures: which attempt number (1, 2, etc.) */
+  attemptNumber?: number;
+  /** The learner persona active during this capture */
+  activePersona?: LearnerPersona;
 }
 
 /** Types of user interactions that can be performed */
@@ -142,6 +206,8 @@ export interface NavigationSession {
   endedAt?: number;
   /** Error message if failed */
   error?: string;
+  /** Default learner persona for all flows (can be overridden per-flow) */
+  defaultPersona?: LearnerPersona;
 }
 
 /** Configuration for navigation session */
