@@ -107,14 +107,21 @@ function base64ToFile(base64: string, mediaType: string, filename: string): File
 // Helper function to detect section type from captured content types
 function detectSectionTypeFromCaptures(captures: CapturedMoment[]): SectionType | undefined {
   const types = captures.map((c) => c.contentType);
+  // Check for quiz/assessment content - map to valid 'quiz' type
   if (types.some((t) => ['quiz_question', 'quiz_feedback', 'assessment_result'].includes(t))) {
-    return 'assessment';
+    return 'quiz';
   }
-  if (types.some((t) => ['lesson_content', 'onboarding_step'].includes(t))) {
-    return 'instruction';
-  }
+  // Check for practice exercises
   if (types.some((t) => ['practice_exercise'].includes(t))) {
     return 'practice';
+  }
+  // Check for onboarding content
+  if (types.some((t) => ['onboarding_step'].includes(t))) {
+    return 'onboarding';
+  }
+  // Check for lesson/instructional content - map to valid 'lesson' type
+  if (types.some((t) => ['lesson_content'].includes(t))) {
+    return 'lesson';
   }
   return undefined;
 }
@@ -460,9 +467,13 @@ export default function AuditTool({ principles }: AuditToolProps) {
     setAnalyzingSection(null);
 
     // Check for low-scoring principles to trigger follow-up
-    const lowScoring = Object.entries(newRatings)
-      .filter(([, score]) => score !== null && score <= 3);
-    if (lowScoring.length > 0) {
+    // Only show follow-up if there are relevant questions for the section types
+    const lowScoringIds = Object.entries(newRatings)
+      .filter(([, score]) => score !== null && score <= 3)
+      .map(([id]) => id);
+    const sectionNames = sections.map((s) => s.name);
+    const relevantLowScoring = getRelevantFollowUpPrinciples(lowScoringIds, sectionNames);
+    if (relevantLowScoring.length > 0) {
       setShowFollowUp(true);
     }
   }, [sections, principles]);
