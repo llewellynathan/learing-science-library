@@ -107,14 +107,21 @@ function base64ToFile(base64: string, mediaType: string, filename: string): File
 // Helper function to detect section type from captured content types
 function detectSectionTypeFromCaptures(captures: CapturedMoment[]): SectionType | undefined {
   const types = captures.map((c) => c.contentType);
+  // Check for quiz/assessment content - map to valid 'quiz' type
   if (types.some((t) => ['quiz_question', 'quiz_feedback', 'assessment_result'].includes(t))) {
-    return 'assessment';
+    return 'quiz';
   }
-  if (types.some((t) => ['lesson_content', 'onboarding_step'].includes(t))) {
-    return 'instruction';
-  }
+  // Check for practice exercises
   if (types.some((t) => ['practice_exercise'].includes(t))) {
     return 'practice';
+  }
+  // Check for onboarding content
+  if (types.some((t) => ['onboarding_step'].includes(t))) {
+    return 'onboarding';
+  }
+  // Check for lesson/instructional content - map to valid 'lesson' type
+  if (types.some((t) => ['lesson_content'].includes(t))) {
+    return 'lesson';
   }
   return undefined;
 }
