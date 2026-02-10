@@ -1313,8 +1313,24 @@ export default function AuditTool({ principles }: AuditToolProps) {
           </div>
         </div>
       ) : (mode === 'manual' || (sectionResults.length > 0 && !showFollowUp)) ? (
-        /* Rating Cards */
-        <div className="space-y-4">
+        <>
+          {/* Debug Panel - TODO: Remove after debugging */}
+          {sectionResults.length > 0 && (
+            <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs font-mono">
+              <div><strong>Debug Info:</strong></div>
+              <div>sectionResults: {sectionResults.length} sections</div>
+              {sectionResults.map((sr, i) => (
+                <div key={i}>
+                  Section "{sr.sectionName}": {Object.keys(sr.scores).length} scores,
+                  non-NA: {Object.values(sr.scores).filter(s => s && !s.notApplicable).length}
+                </div>
+              ))}
+              <div>combinedAiScores: {combinedAiScores ? Object.keys(combinedAiScores).length : 0} principles</div>
+              <div>ratings non-null: {Object.values(ratings).filter(r => r !== null).length}</div>
+            </div>
+          )}
+          {/* Rating Cards */}
+          <div className="space-y-4">
           {principles.map((principle) => {
             const promptData = auditData[principle.id];
             const colors = categoryColors[principle.category];
@@ -1372,7 +1388,8 @@ export default function AuditTool({ principles }: AuditToolProps) {
               </div>
             );
           })}
-        </div>
+          </div>
+        </>
       ) : null}
 
       {/* Show Results Button at bottom when all completed */}
