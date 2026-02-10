@@ -665,14 +665,6 @@ export default function AuditTool({ principles }: AuditToolProps) {
 
   return (
     <div className="space-y-8">
-      {/* Global Debug Panel - Always visible */}
-      <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-xs font-mono">
-        <div><strong>Global Debug:</strong></div>
-        <div>mode: {mode} | sections: {sections.length} | sectionResults: {sectionResults.length}</div>
-        <div>showUpfrontModal: {showUpfrontModal.toString()} | isAnalyzing: {isAnalyzing.toString()}</div>
-        <div>showFollowUp: {showFollowUp.toString()} | showResults: {showResults.toString()}</div>
-      </div>
-
       {/* Upfront Context Modal */}
       {showUpfrontModal && (
         <UpfrontContextModal
@@ -808,17 +800,6 @@ export default function AuditTool({ principles }: AuditToolProps) {
               Break your learning experience into sections (e.g., pre-quiz, lesson, practice game).
               Upload up to 5 screenshots for each section.
             </p>
-
-            {/* Debug: Section Creation Info */}
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs font-mono">
-              <div><strong>Debug - Sections State:</strong></div>
-              <div>sections.length: {sections.length}</div>
-              <div>mode: {mode}</div>
-              <div>sectionResults.length: {sectionResults.length}</div>
-              {sections.map((s, i) => (
-                <div key={i}>Section {i+1}: "{s.name}" | type: {s.typeOverride || 'auto'} | images: {s.images.length}</div>
-              ))}
-            </div>
 
             {/* Section Cards */}
             {sections.length > 0 && (
@@ -1332,24 +1313,8 @@ export default function AuditTool({ principles }: AuditToolProps) {
           </div>
         </div>
       ) : (mode === 'manual' || (sectionResults.length > 0 && !showFollowUp)) ? (
-        <>
-          {/* Debug Panel - TODO: Remove after debugging */}
-          {sectionResults.length > 0 && (
-            <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs font-mono">
-              <div><strong>Debug Info:</strong></div>
-              <div>sectionResults: {sectionResults.length} sections</div>
-              {sectionResults.map((sr, i) => (
-                <div key={i}>
-                  Section "{sr.sectionName}": {Object.keys(sr.scores).length} scores,
-                  non-NA: {Object.values(sr.scores).filter(s => s && !s.notApplicable).length}
-                </div>
-              ))}
-              <div>combinedAiScores: {combinedAiScores ? Object.keys(combinedAiScores).length : 0} principles</div>
-              <div>ratings non-null: {Object.values(ratings).filter(r => r !== null).length}</div>
-            </div>
-          )}
-          {/* Rating Cards */}
-          <div className="space-y-4">
+        /* Rating Cards */
+        <div className="space-y-4">
           {principles.map((principle) => {
             const promptData = auditData[principle.id];
             const colors = categoryColors[principle.category];
@@ -1407,8 +1372,7 @@ export default function AuditTool({ principles }: AuditToolProps) {
               </div>
             );
           })}
-          </div>
-        </>
+        </div>
       ) : null}
 
       {/* Show Results Button at bottom when all completed */}
