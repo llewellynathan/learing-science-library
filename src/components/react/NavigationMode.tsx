@@ -6,7 +6,9 @@ import type {
   CapturedMoment,
   NavigationConfig,
   WaitingReason,
+  LearnerPersona,
 } from '../../types/navigation';
+import { LEARNER_PERSONAS } from '../../types/navigation';
 import { CONTENT_TYPE_LABELS } from '../../data/navigationPrompts';
 
 interface NavigationModeProps {
@@ -35,6 +37,7 @@ export default function NavigationMode({ onComplete, onCancel }: NavigationModeP
   const [startUrl, setStartUrl] = useState('');
   const [flows, setFlows] = useState<NavigationFlow[]>([]);
   const [newFlowDescription, setNewFlowDescription] = useState('');
+  const [defaultPersona, setDefaultPersona] = useState<LearnerPersona>('mixed');
 
   // Active session state
   const [session, setSession] = useState<NavigationSession | null>(null);
@@ -78,6 +81,12 @@ export default function NavigationMode({ onComplete, onCancel }: NavigationModeP
     });
   }, []);
 
+  const updateFlowPersona = useCallback((id: string, persona: LearnerPersona | undefined) => {
+    setFlows((prev) =>
+      prev.map((f) => (f.id === id ? { ...f, persona } : f))
+    );
+  }, []);
+
   const startNavigation = useCallback(async () => {
     if (!startUrl.trim() || flows.length === 0) return;
 
@@ -93,6 +102,7 @@ export default function NavigationMode({ onComplete, onCancel }: NavigationModeP
       interactions: [],
       status: 'ready',
       startedAt: Date.now(),
+      defaultPersona,
     };
 
     setSession(newSession);
@@ -224,6 +234,19 @@ export default function NavigationMode({ onComplete, onCancel }: NavigationModeP
                       {index + 1}
                     </span>
                     <span className="flex-1 text-sm text-slate-700">{flow.description}</span>
+                    <select
+                      value={flow.persona || ''}
+                      onChange={(e) => updateFlowPersona(flow.id, e.target.value ? e.target.value as LearnerPersona : undefined)}
+                      className="text-xs border border-slate-200 rounded px-2 py-1 bg-white text-slate-600"
+                      title="Override persona for this flow"
+                    >
+                      <option value="">Use default</option>
+                      {LEARNER_PERSONAS.map((p) => (
+                        <option key={p.persona} value={p.persona}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
                     <div className="flex gap-1">
                       <button
                         onClick={() => reorderFlow(flow.id, 'up')}
@@ -292,6 +315,27 @@ export default function NavigationMode({ onComplete, onCancel }: NavigationModeP
                 ))}
               </div>
             )}
+          </div>
+
+          {/* Default Persona */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Default Learner Persona
+            </label>
+            <select
+              value={defaultPersona}
+              onChange={(e) => setDefaultPersona(e.target.value as LearnerPersona)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+            >
+              {LEARNER_PERSONAS.map((p) => (
+                <option key={p.persona} value={p.persona}>
+                  {p.label} - {p.description}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-slate-500">
+              The persona determines how questions are answered. "Path Explorer" captures both correct and incorrect feedback.
+            </p>
           </div>
 
           {error && (
@@ -446,8 +490,16 @@ export default function NavigationMode({ onComplete, onCancel }: NavigationModeP
                 Tell Claude Code to navigate your learning experience. Say something like:
               </p>
               <div className="bg-white/50 rounded p-3 mb-4 font-mono text-sm text-blue-900">
-                "Navigate to {session.startUrl} and capture these flows: {session.flows.map(f => f.description).join(', ')}"
+                "Navigate to {session.startUrl} using the '{LEARNER_PERSONAS.find(p => p.persona === (session.defaultPersona || 'mixed'))?.label || 'Path Explorer'}' persona and capture these flows: {session.flows.map(f => {
+                  const personaLabel = f.persona
+                    ? LEARNER_PERSONAS.find(p => p.persona === f.persona)?.label
+                    : null;
+                  return personaLabel ? `${f.description} (${personaLabel})` : f.description;
+                }).join(', ')}"
               </div>
+              <p className="text-xs text-blue-700 mb-2">
+                <strong>Persona:</strong> {LEARNER_PERSONAS.find(p => p.persona === (session.defaultPersona || 'mixed'))?.description || 'Alternates to capture both correct and incorrect feedback'}
+              </p>
 
               <div className="border-t border-blue-200 pt-4 mt-4">
                 <h5 className="text-sm font-medium text-blue-900 mb-2">Import Results</h5>
