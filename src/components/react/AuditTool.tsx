@@ -13,6 +13,7 @@ import {
 } from '../../data/upfrontQuestions';
 import { getRelevantFollowUpPrinciples } from '../../data/followUpQuestions';
 import type { NavigationSession, CapturedMoment, LearningContentType } from '../../types/navigation';
+import { MAX_IMAGES_PER_SECTION } from '../../config/constants';
 
 type Category =
   | 'Memory & Retention'
@@ -798,7 +799,7 @@ export default function AuditTool({ principles }: AuditToolProps) {
             <h3 className="font-semibold text-slate-900 mb-2">Define Your Learning Experience Sections</h3>
             <p className="text-sm text-slate-600 mb-4">
               Break your learning experience into sections (e.g., pre-quiz, lesson, practice game).
-              Upload up to 5 screenshots for each section.
+              Upload up to {MAX_IMAGES_PER_SECTION} screenshots for each section.
             </p>
 
             {/* Section Cards */}
@@ -844,7 +845,7 @@ export default function AuditTool({ principles }: AuditToolProps) {
                     <ImageUpload
                       images={section.images}
                       onChange={(images) => updateSectionImages(section.id, images)}
-                      maxImages={5}
+                      maxImages={MAX_IMAGES_PER_SECTION}
                       disabled={isAnalyzing}
                     />
                     <div className="mt-4">
@@ -903,7 +904,7 @@ export default function AuditTool({ principles }: AuditToolProps) {
 
             {sections.length === 0 && (
               <div className="text-center py-8 text-slate-500 text-sm border-t border-slate-100 mt-4">
-                Add sections to get started. Each section can have up to 5 screenshots.
+                Add sections to get started. Each section can have up to {MAX_IMAGES_PER_SECTION} screenshots.
               </div>
             )}
           </div>

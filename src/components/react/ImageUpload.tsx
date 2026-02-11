@@ -1,4 +1,5 @@
 import { useState, useCallback, useId } from 'react';
+import { MAX_IMAGES_PER_SECTION } from '../../config/constants';
 
 interface ImageFile {
   file: File;
@@ -12,7 +13,7 @@ interface ImageUploadProps {
   disabled?: boolean;
 }
 
-export default function ImageUpload({ images, onChange, maxImages = 5, disabled = false }: ImageUploadProps) {
+export default function ImageUpload({ images, onChange, maxImages = MAX_IMAGES_PER_SECTION, disabled = false }: ImageUploadProps) {
   const inputId = useId();
   const [isDragging, setIsDragging] = useState(false);
 

@@ -8,6 +8,7 @@ import {
   type UpfrontContextAnswers,
   type SectionType,
 } from '../../data/upfrontQuestions';
+import { MAX_IMAGES_PER_SECTION } from '../../config/constants';
 
 export const prerender = false;
 
@@ -180,9 +181,9 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    if (images.length > 5) {
+    if (images.length > MAX_IMAGES_PER_SECTION) {
       return new Response(
-        JSON.stringify({ error: 'Maximum 5 images allowed per section' }),
+        JSON.stringify({ error: `Maximum ${MAX_IMAGES_PER_SECTION} images allowed per section` }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
