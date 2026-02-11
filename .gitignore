@@ -26,3 +26,6 @@ pnpm-debug.log*
 # claude local settings
 .claude/settings.local.json
 .vercel
+
+# temporary files (live-audit sessions, etc.)
+tmp/
