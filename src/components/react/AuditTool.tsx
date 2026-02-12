@@ -12,6 +12,7 @@ import {
   SECTION_TYPE_OPTIONS,
 } from '../../data/upfrontQuestions';
 import { getRelevantFollowUpPrinciples } from '../../data/followUpQuestions';
+import { getMissingFlowRecommendations, type MissingFlowRecommendation } from '../../data/missingFlowsData';
 import type { NavigationSession, CapturedMoment, LearningContentType } from '../../types/navigation';
 import { MAX_IMAGES_PER_SECTION } from '../../config/constants';
 
@@ -211,6 +212,23 @@ export default function AuditTool({ principles }: AuditToolProps) {
       })
       .sort((a, b) => a.score - b.score);
   }, [combinedAiScores, principles, sections]);
+
+  // Compute present section types for missing flows detection
+  const presentSectionTypes = useMemo(() => {
+    const types = new Set<SectionType>();
+    for (const section of sections) {
+      const type = section.typeOverride || detectSectionType(section.name);
+      types.add(type);
+    }
+    return Array.from(types);
+  }, [sections]);
+
+  // Get recommendations for missing learning components
+  const missingFlowsFeedback = useMemo(() => {
+    // Only compute after analysis is complete
+    if (sectionResults.length === 0) return [];
+    return getMissingFlowRecommendations(presentSectionTypes);
+  }, [presentSectionTypes, sectionResults]);
 
   const results = useMemo(() => {
     const rated = Object.entries(ratings).filter(([, score]) => score !== null);
@@ -1151,6 +1169,42 @@ export default function AuditTool({ principles }: AuditToolProps) {
                     </p>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Missing Learning Components - only show on Overall tab when there are suggestions */}
+          {resultsTab === 'overall' && missingFlowsFeedback.length > 0 && (
+            <div className="bg-blue-50 rounded-lg border border-blue-200 p-6">
+              <h3 className="text-lg font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+                Consider Adding
+              </h3>
+              <p className="text-sm text-slate-600 mb-4">
+                Based on learning science research, these components could strengthen your experience:
+              </p>
+              <div className="space-y-3">
+                {missingFlowsFeedback.map((flow) => (
+                  <div
+                    key={flow.sectionType}
+                    className={`bg-white rounded-lg p-4 border ${
+                      flow.priority === 'high' ? 'border-blue-300' : 'border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium text-slate-900">{flow.headline}</span>
+                      {flow.priority === 'high' && (
+                        <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
+                          Recommended
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-slate-700 mb-1">{flow.recommendation}</p>
+                    <p className="text-xs text-slate-500 italic">{flow.whyItMatters}</p>
+                  </div>
+                ))}
               </div>
             </div>
           )}
